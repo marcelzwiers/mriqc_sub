@@ -73,7 +73,7 @@ if __name__ == "__main__":
                                      epilog='examples:\n  mriqc_sub.py /project/3022026.01/bids\n  mriqc_sub.py /project/3022026.01/bids -o /project/3022026.01/mriqc --sessions sub-010/ses-mri01 sub-011/ses-mri01\n  mriqc_sub.py -f -m 16 /project/3022026.01/bids -s sub-013/ses-mri01\n\nAuthor:\n  Marcel Zwiers\n ')
     parser.add_argument('bidsdir',          help='The bids-directory with the (new) subject data')
     parser.add_argument('-o','--outputdir', help='The output-directory where the mriqc-reports are stored (None = ./bidsdir/derivatives/mriqc)')
-    parser.add_argument('-s','--sessions',  help='Space seperated list of selected sub-#/ses-# names / folders to be processed. Otherwise all sessions in the rawfolder will be selected', nargs='*')
+    parser.add_argument('-s','--sessions',  help='Space seperated list of selected sub-#/ses-# names / folders to be processed. Otherwise all sessions in the rawfolder will be selected', nargs='+')
     parser.add_argument('-f','--force',     help='If this flag is given subjects will be processed, regardless of existing folders in the bidsfolder. Otherwise existing folders will be skipped', action='store_true')
     parser.add_argument('-m','--mem_gb',    help='Maximum required amount of memory', default=18)
     parser.add_argument('-a','--args',      help='Additional arguments that are passed to mriqc (NB: Use quotes to prevent parsing of spaces)')
