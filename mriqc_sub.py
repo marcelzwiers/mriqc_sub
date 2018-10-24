@@ -55,7 +55,9 @@ def main(bidsdir, outputdir, sessions=(), force=False, mem_gb=18, argstr=''):
             if proc.returncode != 0:
                 print('Job submission failed with error-code: {}\n'.format(proc.returncode))
 
-    print('\n----------------\nDone! Now wait for the jobs to finish before running the group-level QC, e.g. like this:\n  mriqc {bidsdir} {outputdir} group\n\nYou may remove the (large) "workdir" subdirectories; for more details, see:\n  mriqc -h\n'.format(bidsdir=bidsdir, outputdir=outputdir))
+    print('\n----------------\nDone! Now wait for the jobs to finish before running the group-level QC, e.g. like this:\n' \
+          '  mriqc {bidsdir} {outputdir} group\n\nYou may remove the (large) "workdir" subdirectories; for more details, see:\n' \
+          '  mriqc -h\n'.format(bidsdir=bidsdir, outputdir=outputdir))
 
 
 # Shell usage
