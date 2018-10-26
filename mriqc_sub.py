@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-MRIQC_SUB is a wrapper around mriqc that queries the bids directory for new
+mriqc_sub.py is a wrapper around mriqc that queries the bids directory for new
 participants and then runs participant-level mriqc jobs on the compute cluster.
 If the participant-level jobs have all finished, you can run the group-level
 "mriqc bidsdir outputdir group" command to generate group level results (the
@@ -20,11 +20,22 @@ def main(bidsdir, outputdir, sessions=(), force=False, mem_gb=18, argstr=''):
     if not outputdir:
         outputdir = os.path.join(bidsdir,'derivatives','mriqc')
 
-    # Scan the bids-directory for new subjects
+    # Map the bids directory
     if not sessions:
-        sessions = glob.glob(os.path.join(bidsdir, 'sub-*'+os.sep+'ses-*'), recursive=True)
+        sessions = glob.glob(os.path.join(bidsdir, 'sub-*'+os.sep+'ses-*'))
+
+    # Submit a job for every (new) session
     for session in sessions:
-        if force or not glob.glob(os.path.join(outputdir,'reports','sub-' + session.rsplit('sub-')[1].replace(os.sep,'_') + '_*.html')):
+
+        if not os.path.isdir(session):
+            print('Not a directory: ' + session)
+            continue
+
+        sub_id = session.rsplit('sub-')[1].split(os.sep)[0]
+        ses_id = session.rsplit('ses-')[1]
+
+        # A session is considered already done if there is a html-report
+        if force or not glob.glob(os.path.join(outputdir, 'sub-' + sub_id + '_ses-' + ses_id + '_*.html')):
 
             # Submit the mriqc jobs to the cluster
             # usage: mriqc [-h] [--version]
@@ -44,8 +55,7 @@ def main(bidsdir, outputdir, sessions=(), force=False, mem_gb=18, argstr=''):
             #              [--correct-slice-timing]
             #              bids_dir output_dir {participant,group} [{participant,group} ...]
             # mriqc --verbose-reports -w mriqc/work/010 --participant_label 010 --mem_gb 23 --ants-nthreads 1 --nprocs 1 bids/ mriqc/ participant
-            sub_id  = session.rsplit('sub-')[1].split(os.sep)[0]
-            ses_id  = session.rsplit('ses-')[1]
+
             command = """qsub -l walltime=24:00:00,mem={mem_gb}gb -N mriqc_{sub_id}_{ses_id} <<EOF
                          module add mriqc; source activate /opt/mriqc
                          mriqc {bidsdir} {outputdir} participant -w {workdir} --participant-label {sub_id} --session-id {ses_id} --verbose-reports --mem_gb {mem_gb} --ants-nthreads 1 --nprocs 1 {args}\nEOF"""\
@@ -55,9 +65,12 @@ def main(bidsdir, outputdir, sessions=(), force=False, mem_gb=18, argstr=''):
             if proc.returncode != 0:
                 print('Job submission failed with error-code: {}\n'.format(proc.returncode))
 
-    print('\n----------------\nDone! Now wait for the jobs to finish before running the group-level QC, e.g. like this:\n' \
-          '  mriqc {bidsdir} {outputdir} group\n\nYou may remove the (large) "workdir" subdirectories; for more details, see:\n' \
-          '  mriqc -h\n'.format(bidsdir=bidsdir, outputdir=outputdir))
+    print('\n----------------\n' 
+          'Done! Now wait for the jobs to finish before running the group-level QC, e.g. like this:\n\n'
+          '  source activate /opt/mriqc\n'
+          '  mriqc {bidsdir} {outputdir} group\n\n' 
+          'You may remove the (large) "[outputdir]/work" subdirectory; for more details, see:\n\n'
+          '  mriqc -h\n '.format(bidsdir=bidsdir, outputdir=outputdir))
 
 
 # Shell usage
@@ -70,15 +83,20 @@ if __name__ == "__main__":
     class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionHelpFormatter):
         pass
 
-    parser = argparse.ArgumentParser(formatter_class=CustomFormatter,
-                                     description=textwrap.dedent(__doc__),
-                                     epilog='examples:\n  mriqc_sub.py /project/3022026.01/bids\n  mriqc_sub.py /project/3022026.01/bids -o /project/3022026.01/mriqc --sessions sub-010/ses-mri01 sub-011/ses-mri01\n  mriqc_sub.py -f -m 16 /project/3022026.01/bids -s sub-013/ses-mri01\n\nAuthor:\n  Marcel Zwiers\n ')
+    parser = argparse.ArgumentParser(formatter_class=CustomFormatter, description=textwrap.dedent(__doc__),
+                                     epilog='examples:\n'
+                                            '  mriqc_sub.py /project/3022026.01/bids\n'
+                                            '  mriqc_sub.py /project/3022026.01/bids -o /project/3022026.01/mriqc --sessions sub-010/ses-mri01 sub-011/ses-mri01\n'
+                                            '  mriqc_sub.py /project/3022026.01/bids -a "--fft-spikes-detector --no-sub"\n'
+                                            '  mriqc_sub.py -f -m 16 /project/3022026.01/bids -s sub-013/ses-mri01\n\n'
+                                            'Author:\n' 
+                                            '  Marcel Zwiers\n ')
     parser.add_argument('bidsdir',          help='The bids-directory with the (new) subject data')
     parser.add_argument('-o','--outputdir', help='The output-directory where the mriqc-reports are stored (None = ./bidsdir/derivatives/mriqc)')
     parser.add_argument('-s','--sessions',  help='Space seperated list of selected sub-#/ses-# names / folders to be processed. Otherwise all sessions in the rawfolder will be selected', nargs='+')
     parser.add_argument('-f','--force',     help='If this flag is given subjects will be processed, regardless of existing folders in the bidsfolder. Otherwise existing folders will be skipped', action='store_true')
     parser.add_argument('-m','--mem_gb',    help='Maximum required amount of memory', default=18)
-    parser.add_argument('-a','--args',      help='Additional arguments that are passed to mriqc (NB: Use quotes to prevent parsing of spaces)')
+    parser.add_argument('-a','--args',      help='Additional arguments that are passed to mriqc (NB: Use quotes to prevent parsing of spaces)', type=str, default='')
     args = parser.parse_args()
 
     main(bidsdir=args.bidsdir, outputdir=args.outputdir, sessions=args.sessions, force=args.force, mem_gb=args.mem_gb, argstr=args.args)
