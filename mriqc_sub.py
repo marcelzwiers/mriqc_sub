@@ -18,7 +18,7 @@ def main(bidsdir, outputdir, sessions=(), force=False, mem_gb=18, argstr=''):
 
     # Default
     if not outputdir:
-        outputdir = os.path.join(bidsdir,'derivatives','mriqc')
+        outputdir = os.path.join(bidsdir,'derivatives')
 
     # Map the bids directory
     if not sessions:
@@ -35,7 +35,7 @@ def main(bidsdir, outputdir, sessions=(), force=False, mem_gb=18, argstr=''):
         ses_id = session.rsplit('ses-')[1]
 
         # A session is considered already done if there is a html-report
-        if force or not glob.glob(os.path.join(outputdir, 'sub-' + sub_id + '_ses-' + ses_id + '_*.html')):
+        if force or not glob.glob(os.path.join(outputdir, 'mriqc', 'sub-' + sub_id + '_ses-' + ses_id + '_*.html')):
 
             # Submit the mriqc jobs to the cluster
             # usage: mriqc [-h] [--version]
@@ -59,7 +59,7 @@ def main(bidsdir, outputdir, sessions=(), force=False, mem_gb=18, argstr=''):
             command = """qsub -l walltime=24:00:00,mem={mem_gb}gb -N mriqc_{sub_id}_{ses_id} <<EOF
                          module add mriqc; source activate /opt/mriqc
                          mriqc {bidsdir} {outputdir} participant -w {workdir} --participant-label {sub_id} --session-id {ses_id} --verbose-reports --mem_gb {mem_gb} --ants-nthreads 1 --nprocs 1 {args}\nEOF"""\
-                         .format(bidsdir=bidsdir, outputdir=outputdir, workdir=os.path.join(outputdir,'work',sub_id+'_'+ses_id), sub_id=sub_id, ses_id=ses_id, mem_gb=mem_gb, args=argstr)
+                         .format(bidsdir=bidsdir, outputdir=os.path.join(outputdir,'mriqc'), workdir=os.path.join(outputdir,'work_mriqc',sub_id+'_'+ses_id), sub_id=sub_id, ses_id=ses_id, mem_gb=mem_gb, args=argstr)
             print('>>> Submitting job:\n' + command)
             proc = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
             if proc.returncode != 0:
@@ -69,7 +69,7 @@ def main(bidsdir, outputdir, sessions=(), force=False, mem_gb=18, argstr=''):
           'Done! Now wait for the jobs to finish before running the group-level QC, e.g. like this:\n\n'
           '  source activate /opt/mriqc\n'
           '  mriqc {bidsdir} {outputdir} group\n\n' 
-          'You may remove the (large) "[outputdir]/work" subdirectory; for more details, see:\n\n'
+          'You may remove the (large) {outputdir}/work_mriqc subdirectory when the jobs are finished; for more details, see:\n\n'
           '  mriqc -h\n '.format(bidsdir=bidsdir, outputdir=outputdir))
 
 
