@@ -68,10 +68,10 @@ def main(bidsdir, outputdir, sessions=(), force=False, mem_gb=18, argstr='', dry
                 print('>>> Skipping already running / scheduled job: mriqc_' + sub_id)
             else:
                 print('>>> Submitting job:\n' + command)
-            if not dryrun:
-                proc = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-                if proc.returncode != 0:
-                    print('Job submission failed with error-code: {}\n'.format(proc.returncode))
+                if not dryrun:
+                    proc = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+                    if proc.returncode != 0:
+                        print('Job submission failed with error-code: {}\n'.format(proc.returncode))
 
     print('\n----------------\n' 
           'Done! Now wait for the jobs to finish before running the group-level QC, e.g. like this:\n\n'
