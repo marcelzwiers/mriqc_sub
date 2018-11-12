@@ -62,16 +62,15 @@ def main(bidsdir, outputdir, sessions=(), force=False, mem_gb=18, argstr='', dry
                          module rm fsl; module add mriqc; source activate /opt/mriqc; cd {pwd}
                          mriqc {bidsdir} {outputdir} participant -w {workdir} --participant-label {sub_id} --session-id {ses_id} --verbose-reports --mem_gb {mem_gb} --ants-nthreads 1 --nprocs 1 {args}\nEOF"""\
                          .format(bidsdir=bidsdir, outputdir=os.path.join(outputdir,'mriqc'), workdir=os.path.join(outputdir,'work_mriqc','sub-'+sub_id+'_ses-'+ses_id), sub_id=sub_id, ses_id=ses_id, mem_gb=mem_gb, args=argstr, pwd=os.getcwd())
-            running = subprocess.run('qstat -f $(qselect -s RQH) | grep Job_Name | grep mriqc_',
-                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-            if skip and 'mriqc_' + sub_id in running.stdout.decode():
-                print('>>> Skipping already running / scheduled job: mriqc_' + sub_id)
+            running = subprocess.run('if [ ! -z "$(qselect -s RQH)" ]; then qstat -f $(qselect -s RQH) | grep Job_Name | grep mriqc_; fi', stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+            if skip and 'mriqc_' + sub_id + '_' + ses_id in running.stdout.decode():
+                print('>>> Skipping already running / scheduled job: mriqc_' + sub_id + '_' + ses_id)
             else:
                 print('>>> Submitting job:\n' + command)
                 if not dryrun:
                     proc = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
                     if proc.returncode != 0:
-                        print('Job submission failed with error-code: {}\n'.format(proc.returncode))
+                        print('WARNING: Job submission failed with error-code {}\n'.format(proc.returncode))
 
     print('\n----------------\n' 
           'Done! Now wait for the jobs to finish before running the group-level QC, e.g. like this:\n\n'
@@ -107,7 +106,7 @@ if __name__ == "__main__":
     parser.add_argument('-s','--sessions',  help='Space seperated list of selected sub-#/ses-# names / folders to be processed. Otherwise all sessions in the bidsfolder will be selected', nargs='+')
     parser.add_argument('-f','--force',     help='If this flag is given subjects will be processed, regardless of existing folders in the bidsfolder. Otherwise existing folders will be skipped', action='store_true')
     parser.add_argument('-i','--ignore',            help='If this flag is given then already running or scheduled jobs with the same name are ignored, otherwise job submission is skipped', action='store_false')
-    parser.add_argument('-m','--mem_gb',    help='Maximum required amount of memory', default=18)
+    parser.add_argument('-m','--mem_gb',    help='Maximum required amount of memory', default=18, type=int)
     parser.add_argument('-a','--args',      help='Additional arguments that are passed to mriqc (NB: Use quotes to prevent parsing of spaces)', type=str, default='')
     parser.add_argument('-d','--dryrun',    help='Add this flag to just print the mriqc qsub commands without actually submitting them (useful for debugging)', action='store_true')
     args = parser.parse_args()
