@@ -10,6 +10,7 @@ group level report and the features CSV table)
 """
 
 import os
+import shutil
 import glob
 import subprocess
 
@@ -20,23 +21,25 @@ def main(bidsdir, outputdir, sessions=(), force=False, mem_gb=18, argstr='', dry
     if not outputdir:
         outputdir = os.path.join(bidsdir,'derivatives')         # NB: A mriqc subfolder is added to the outputdir later to be match the BIDS drivatives draft of one folder per pipeline
 
-    # Map the bids directory. TODO: make robust against datasets without session-subfolders
+    # Map the bids session-directories. TODO: make robust against datasets without session-subfolders
     if not sessions:
         sessions = glob.glob(os.path.join(bidsdir, 'sub-*'+os.sep+'ses-*'))
     else:
         sessions = [os.path.join(bidsdir, session) for session in sessions]
 
-    # Submit a job for every (new) session
+    # Loop over bids session-directories and submit a job for every (new) session
     for session in sessions:
 
         if not os.path.isdir(session):
-            print('Not a directory: ' + session)
+            print('>>> Directory does not exist: ' + session)
             continue
 
         sub_id = session.rsplit('sub-')[1].split(os.sep)[0]
         ses_id = session.rsplit('ses-')[1]
 
         # A session is considered already done if there is a html-report
+        report  = os.path.join(outputdir, 'mriqc', 'sub-' + sub_id + '.html')
+        workdir = os.path.join(outputdir, 'work_mriqc', 'sub-' + sub_id + '_ses-' + ses_id)
         if force or not glob.glob(os.path.join(outputdir, 'mriqc', 'sub-' + sub_id + '_ses-' + ses_id + '_*.html')):
 
             # Submit the mriqc jobs to the cluster
@@ -58,10 +61,23 @@ def main(bidsdir, outputdir, sessions=(), force=False, mem_gb=18, argstr='', dry
             #              bids_dir output_dir {participant,group} [{participant,group} ...]
             # mriqc --verbose-reports -w mriqc/work/010 --participant_label 010 --mem_gb 23 --ants-nthreads 1 --nprocs 1 bids/ mriqc/ participant
 
+            # Start with a clean directory if we are forcing to reprocess the data (as presumably something went wrong or has changed)
+            if force and os.path.isdir(workdir):
+                shutil.rmtree(workdir, ignore_errors=True)          # NB: This can also be done in parallel on the cluster if it takes too much time
+            if os.path.isfile(report):
+                os.remove(report)
+
             command = """qsub -l walltime=24:00:00,mem={mem_gb}gb -N mriqc_{sub_id}_{ses_id} <<EOF
                          module rm fsl; module add mriqc; source activate /opt/mriqc; cd {pwd}
                          mriqc {bidsdir} {outputdir} participant -w {workdir} --participant-label {sub_id} --session-id {ses_id} --verbose-reports --mem_gb {mem_gb} --ants-nthreads 1 --nprocs 1 {args}\nEOF"""\
-                         .format(bidsdir=bidsdir, outputdir=os.path.join(outputdir,'mriqc'), workdir=os.path.join(outputdir,'work_mriqc','sub-'+sub_id+'_ses-'+ses_id), sub_id=sub_id, ses_id=ses_id, mem_gb=mem_gb, args=argstr, pwd=os.getcwd())
+                         .format(pwd        = os.getcwd(),
+                                 bidsdir    = bidsdir,
+                                 outputdir  = os.path.join(outputdir,'mriqc'),
+                                 workdir    = workdir,
+                                 sub_id     = sub_id,
+                                 ses_id     = ses_id,
+                                 mem_gb     = mem_gb,
+                                 args       = argstr)
             running = subprocess.run('if [ ! -z "$(qselect -s RQH)" ]; then qstat -f $(qselect -s RQH) | grep Job_Name | grep mriqc_; fi', stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
             if skip and 'mriqc_' + sub_id + '_' + ses_id in running.stdout.decode():
                 print('>>> Skipping already running / scheduled job: mriqc_' + sub_id + '_' + ses_id)
@@ -75,9 +91,9 @@ def main(bidsdir, outputdir, sessions=(), force=False, mem_gb=18, argstr='', dry
     print('\n----------------\n' 
           'Done! Now wait for the jobs to finish before running the group-level QC, e.g. like this:\n\n'
           '  source activate /opt/mriqc\n'
-          '  mriqc {bidsdir} {outputdir} group\n\n' 
+          '  mriqc {bidsdir} {outputdir}{filesep}mriqc group\n\n' 
           'You may remove the (large) {outputdir}/work_mriqc subdirectory when the jobs are finished; for more details, see:\n\n'
-          '  mriqc -h\n '.format(bidsdir=bidsdir, outputdir=outputdir))
+          '  mriqc -h\n '.format(bidsdir=bidsdir, outputdir=outputdir, filesep=os.sep))
 
 
 # Shell usage
@@ -105,7 +121,7 @@ if __name__ == "__main__":
     parser.add_argument('-o','--outputdir', help='The output-directory where the mriqc-reports are stored (None = bidsdir/derivatives)')
     parser.add_argument('-s','--sessions',  help='Space seperated list of selected sub-#/ses-# names / folders to be processed. Otherwise all sessions in the bidsfolder will be selected', nargs='+')
     parser.add_argument('-f','--force',     help='If this flag is given subjects will be processed, regardless of existing folders in the bidsfolder. Otherwise existing folders will be skipped', action='store_true')
-    parser.add_argument('-i','--ignore',            help='If this flag is given then already running or scheduled jobs with the same name are ignored, otherwise job submission is skipped', action='store_false')
+    parser.add_argument('-i','--ignore',    help='If this flag is given then already running or scheduled jobs with the same name are ignored, otherwise job submission is skipped', action='store_false')
     parser.add_argument('-m','--mem_gb',    help='Maximum required amount of memory', default=18, type=int)
     parser.add_argument('-a','--args',      help='Additional arguments that are passed to mriqc (NB: Use quotes to prevent parsing of spaces)', type=str, default='')
     parser.add_argument('-d','--dryrun',    help='Add this flag to just print the mriqc qsub commands without actually submitting them (useful for debugging)', action='store_true')
