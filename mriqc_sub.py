@@ -19,11 +19,13 @@ def main(bidsdir, outputdir, sessions=(), force=False, mem_gb=18, argstr='', dry
 
     # Default
     if not outputdir:
-        outputdir = os.path.join(bidsdir,'derivatives')         # NB: A mriqc subfolder is added to the outputdir later to be match the BIDS drivatives draft of one folder per pipeline
+        outputdir = os.path.join(bidsdir,'derivatives')             # NB: A mriqc subfolder is added to the outputdir later to be match the BIDS drivatives draft of one folder per pipeline
 
-    # Map the bids session-directories. TODO: make robust against datasets without session-subfolders
+    # Map the bids session-directories
     if not sessions:
         sessions = glob.glob(os.path.join(bidsdir, 'sub-*'+os.sep+'ses-*'))
+        if not sessions:
+            sessions = glob.glob(os.path.join(bidsdir, 'sub-*'))    # Try without session-subfolders
     else:
         sessions = [os.path.join(bidsdir, session) for session in sessions]
 
