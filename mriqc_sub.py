@@ -77,9 +77,10 @@ def main(bidsdir, outputdir, workdir_, sessions=(), force=False, mem_gb=18, args
 
             command = """qsub -l walltime=24:00:00,mem={mem_gb}gb -N mriqc_{sub_id}_{ses_id} <<EOF
                          module rm fsl; module add mriqc; source activate /opt/mriqc; cd {pwd}
-                         mriqc {bidsdir} {outputdir} participant -w {workdir} --participant-label {sub_id} --session-id {ses_id} --verbose-reports --mem_gb {mem_gb} --ants-nthreads 1 --nprocs 1 {args}
+                         {mriqc} {bidsdir} {outputdir} participant -w {workdir} --participant-label {sub_id} --session-id {ses_id} --verbose-reports --mem_gb {mem_gb} --ants-nthreads 1 --nprocs 1 {args}
                          {cleanup}\nEOF"""\
                          .format(pwd        = os.getcwd(),
+                                 mriqc      = f'unset PYTHONPATH; singularity run {os.getenv("DCCN_OPT_DIR")}/mriqc/{os.getenv("MRIQC_VERSION")}/mriqc-{os.getenv("MRIQC_VERSION")}.simg',
                                  bidsdir    = bidsdir,
                                  outputdir  = os.path.join(outputdir,'mriqc'),
                                  workdir    = workdir,
@@ -90,7 +91,7 @@ def main(bidsdir, outputdir, workdir_, sessions=(), force=False, mem_gb=18, args
                                  cleanup    = cleanup)
             running = subprocess.run('if [ ! -z "$(qselect -s RQH)" ]; then qstat -f $(qselect -s RQH) | grep Job_Name | grep mriqc_; fi', stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
             if skip and 'mriqc_' + sub_id + '_' + ses_id in running.stdout.decode():
-                print('>>> Skipping already running / scheduled job: mriqc_' + sub_id + '_' + ses_id)
+                print(f'>>> Skipping already running / scheduled job ({n}/{len(sessions)}): mriqc_{sub_id}_{ses_id}')
             else:
                 print(f'>>> Submitting job ({n}/{len(sessions)}):\n{command}')
                 if not dryrun:
@@ -99,7 +100,7 @@ def main(bidsdir, outputdir, workdir_, sessions=(), force=False, mem_gb=18, args
                         print('WARNING: Job submission failed with error-code {}\n'.format(proc.returncode))
 
         else:
-            print(f'>>> Nothing to do for: {session} (--> {reports})')
+            print(f'>>> Nothing to do for job ({n}/{len(sessions)}): {session} (--> {reports})')
 
     print('\n----------------\n' 
           'Done! Now wait for the jobs to finish before running the group-level QC, e.g. like this:\n\n'
