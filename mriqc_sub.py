@@ -40,15 +40,19 @@ def main(bidsdir, outputdir, workdir_, sessions=(), force=False, mem_gb=18, args
         sub_id = session.rsplit('sub-')[1].split(os.sep)[0]
         ses_id = session.rsplit('ses-')[1]
 
-        # A session is considered already done if there are html-reports
-        reports = glob.glob(os.path.join(outputdir, 'mriqc', 'sub-' + sub_id + '_ses-' + ses_id + '_*.html'))
         if not workdir_:
             workdir = os.path.join(os.sep, 'tmp', os.environ['USER'], 'work_mriqc', f'sub-{sub_id}_ses-{ses_id}_{uuid.uuid4()}')
             cleanup = 'rm -rf ' + workdir
         else:
             workdir = os.path.join(workdir_, f'sub-{sub_id}_ses-{ses_id}')
             cleanup = ''
-        if force or not reports:
+
+        # A session is considered already done if there are html-reports for every anat/* and every func/* file
+        jsonfiles = glob.glob(os.path.join(bidsdir, 'sub-'+sub_id, 'ses-'+ses_id, 'anat', f'sub-{sub_id}_ses-{ses_id}_*.json')) + \
+                    glob.glob(os.path.join(bidsdir, 'sub-'+sub_id, 'ses-'+ses_id, 'func', f'sub-{sub_id}_ses-{ses_id}_*.json'))
+        reports   = glob.glob(os.path.join(outputdir, 'mriqc', f'sub-{sub_id}_ses-{ses_id}_*.html'))
+        print(f'\n>>> Found {len(reports)}/{len(jsonfiles)} existing MRIQC-reports for: sub-{sub_id}_ses-{ses_id}')
+        if force or not len(reports)==len(jsonfiles):
 
             # Submit the mriqc jobs to the cluster
             # usage: mriqc [-h] [--version]
@@ -76,7 +80,7 @@ def main(bidsdir, outputdir, workdir_, sessions=(), force=False, mem_gb=18, args
                 os.remove(report)
 
             command = """qsub -l walltime=24:00:00,mem={mem_gb}gb -N mriqc_{sub_id}_{ses_id} <<EOF
-                         module rm fsl; module add mriqc; source activate /opt/mriqc; cd {pwd}
+                         module add mriqc; cd {pwd}
                          {mriqc} {bidsdir} {outputdir} participant -w {workdir} --participant-label {sub_id} --session-id {ses_id} --verbose-reports --mem_gb {mem_gb} --ants-nthreads 1 --nprocs 1 {args}
                          {cleanup}\nEOF"""\
                          .format(pwd        = os.getcwd(),
@@ -91,16 +95,16 @@ def main(bidsdir, outputdir, workdir_, sessions=(), force=False, mem_gb=18, args
                                  cleanup    = cleanup)
             running = subprocess.run('if [ ! -z "$(qselect -s RQH)" ]; then qstat -f $(qselect -s RQH) | grep Job_Name | grep mriqc_; fi', stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
             if skip and 'mriqc_' + sub_id + '_' + ses_id in running.stdout.decode():
-                print(f'>>> Skipping already running / scheduled job ({n}/{len(sessions)}): mriqc_{sub_id}_{ses_id}')
+                print(f'>>> Skipping already running / scheduled job ({n+1}/{len(sessions)}): mriqc_{sub_id}_{ses_id}')
             else:
-                print(f'>>> Submitting job ({n}/{len(sessions)}):\n{command}')
+                print(f'>>> Submitting job ({n+1}/{len(sessions)}):\n{command}')
                 if not dryrun:
                     proc = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
                     if proc.returncode != 0:
                         print('WARNING: Job submission failed with error-code {}\n'.format(proc.returncode))
 
         else:
-            print(f'>>> Nothing to do for job ({n}/{len(sessions)}): {session} (--> {reports})')
+            print(f'>>> Nothing to do for job ({n+1}/{len(sessions)}): {session} (--> {reports})')
 
     print('\n----------------\n' 
           'Done! Now wait for the jobs to finish before running the group-level QC, e.g. like this:\n\n'
@@ -126,6 +130,7 @@ if __name__ == "__main__":
                                             '  mriqc -h\n\n'
                                             'examples:\n'
                                             '  mriqc_sub.py /project/3022026.01/bids\n'
+                                            '  mriqc_sub.py /project/3022026.01/bids -w /project/3022026.01/mriqc_work\n'
                                             '  mriqc_sub.py /project/3022026.01/bids -o /project/3022026.01/derivatives --sessions sub-010/ses-mri01 sub-011/ses-mri01\n'
                                             '  mriqc_sub.py /project/3022026.01/bids -a "--fft-spikes-detector --no-sub"\n'
                                             '  mriqc_sub.py -f -m 16 /project/3022026.01/bids -s sub-013/ses-mri01\n\n'
@@ -134,7 +139,7 @@ if __name__ == "__main__":
     parser.add_argument('bidsdir',          help='The bids-directory with the (new) subject data')
     parser.add_argument('-o','--outputdir', help='The output-directory where the mriqc-reports are stored (None -> bidsdir/derivatives)')
     parser.add_argument('-w','--workdir',   help='The working-directory where intermediate files are stored (None -> temporary directory')
-    parser.add_argument('-s','--sessions',  help='Space seperated list of selected sub-#/ses-# names / folders to be processed. Otherwise all sessions in the bidsfolder will be selected', nargs='+')
+    parser.add_argument('-s','--sessions',  help='Space separated list of selected sub-#/ses-# names / folders to be processed. Otherwise all sessions in the bidsfolder will be selected', nargs='+')
     parser.add_argument('-f','--force',     help='If this flag is given subjects will be processed, regardless of existing folders in the bidsfolder. Otherwise existing folders will be skipped', action='store_true')
     parser.add_argument('-i','--ignore',    help='If this flag is given then already running or scheduled jobs with the same name are ignored, otherwise job submission is skipped', action='store_false')
     parser.add_argument('-m','--mem_gb',    help='Maximum required amount of memory', default=18, type=int)
