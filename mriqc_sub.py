@@ -47,9 +47,11 @@ def main(bidsdir, outputdir, workdir_, sessions=(), force=False, mem_gb=18, args
             workdir = os.path.join(workdir_, f'sub-{sub_id}_ses-{ses_id}')
             cleanup = ''
 
-        # A session is considered already done if there are html-reports for every anat/* and every func/* file
-        jsonfiles = glob.glob(os.path.join(bidsdir, 'sub-'+sub_id, 'ses-'+ses_id, 'anat', f'sub-{sub_id}_ses-{ses_id}_*.json')) + \
-                    glob.glob(os.path.join(bidsdir, 'sub-'+sub_id, 'ses-'+ses_id, 'func', f'sub-{sub_id}_ses-{ses_id}_*.json'))
+        # A session is considered already done if there are html-reports for every anat/*_T?w and every func/*_bold file
+        jsonfiles = glob.glob(os.path.join(bidsdir, 'sub-'+sub_id, 'ses-'+ses_id, 'anat',       f'sub-{sub_id}_ses-{ses_id}_*_T?w.json')) + \
+                    glob.glob(os.path.join(bidsdir, 'sub-'+sub_id, 'ses-'+ses_id, 'extra_data', f'sub-{sub_id}_ses-{ses_id}_*_T?w.json')) + \
+                    glob.glob(os.path.join(bidsdir, 'sub-'+sub_id, 'ses-'+ses_id, 'func',       f'sub-{sub_id}_ses-{ses_id}_*_bold.json')) + \
+                    glob.glob(os.path.join(bidsdir, 'sub-'+sub_id, 'ses-'+ses_id, 'extra_data', f'sub-{sub_id}_ses-{ses_id}_*_bold.json'))
         reports   = glob.glob(os.path.join(outputdir, 'mriqc', f'sub-{sub_id}_ses-{ses_id}_*.html'))
         print(f'\n>>> Found {len(reports)}/{len(jsonfiles)} existing MRIQC-reports for: sub-{sub_id}_ses-{ses_id}')
         if force or not len(reports)==len(jsonfiles):
@@ -84,7 +86,7 @@ def main(bidsdir, outputdir, workdir_, sessions=(), force=False, mem_gb=18, args
                          {mriqc} {bidsdir} {outputdir} participant -w {workdir} --participant-label {sub_id} --session-id {ses_id} --verbose-reports --mem_gb {mem_gb} --ants-nthreads 1 --nprocs 1 {args}
                          {cleanup}\nEOF"""\
                          .format(pwd        = os.getcwd(),
-                                 mriqc      = f'unset PYTHONPATH; singularity run {os.getenv("DCCN_OPT_DIR")}/mriqc/{os.getenv("MRIQC_VERSION")}/mriqc-{os.getenv("MRIQC_VERSION")}.simg',
+                                 mriqc      = f'unset PYTHONPATH; export PYTHONNOUSERSITE=1; singularity run {os.getenv("DCCN_OPT_DIR")}/mriqc/{os.getenv("MRIQC_VERSION")}/mriqc-{os.getenv("MRIQC_VERSION")}.simg',
                                  bidsdir    = bidsdir,
                                  outputdir  = os.path.join(outputdir,'mriqc'),
                                  workdir    = workdir,
@@ -95,21 +97,21 @@ def main(bidsdir, outputdir, workdir_, sessions=(), force=False, mem_gb=18, args
                                  cleanup    = cleanup)
             running = subprocess.run('if [ ! -z "$(qselect -s RQH)" ]; then qstat -f $(qselect -s RQH) | grep Job_Name | grep mriqc_; fi', stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
             if skip and 'mriqc_' + sub_id + '_' + ses_id in running.stdout.decode():
-                print(f'>>> Skipping already running / scheduled job ({n+1}/{len(sessions)}): mriqc_{sub_id}_{ses_id}')
+                print(f'--> Skipping already running / scheduled job ({n+1}/{len(sessions)}): mriqc_{sub_id}_{ses_id}')
             else:
-                print(f'>>> Submitting job ({n+1}/{len(sessions)}):\n{command}')
+                print(f'--> Submitting job ({n+1}/{len(sessions)}):\n{command}')
                 if not dryrun:
                     proc = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
                     if proc.returncode != 0:
                         print('WARNING: Job submission failed with error-code {}\n'.format(proc.returncode))
 
         else:
-            print(f'>>> Nothing to do for job ({n+1}/{len(sessions)}): {session} (--> {reports})')
+            print(f'--> Nothing to do for job ({n+1}/{len(sessions)}): {session}')
 
-    print('\n----------------\n' 
-          'Done! Now wait for the jobs to finish before running the group-level QC, e.g. like this:\n\n'
+    print('\n----------------\n'
+          'Done! Now wait for the jobs to finish... Then you can run e.g. a group-level QC analysis like this:\n\n'
           '  source activate /opt/mriqc\n'
-          '  mriqc {bidsdir} {outputdir}{filesep}mriqc group\n\n' 
+          '  mriqc {bidsdir} {outputdir}{filesep}mriqc group\n\n'
           'For more details, see:\n\n'
           '  mriqc -h\n '.format(bidsdir=bidsdir, outputdir=outputdir, filesep=os.sep))
 
