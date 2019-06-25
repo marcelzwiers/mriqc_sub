@@ -76,10 +76,11 @@ def main(bidsdir, outputdir, workdir_, sessions=(), force=False, mem_gb=18, args
             # mriqc --verbose-reports -w mriqc/work/010 --participant_label 010 --mem_gb 23 --ants-nthreads 1 --nprocs 1 bids/ mriqc/ participant
 
             # Start with a clean directory if we are forcing to reprocess the data (as presumably something went wrong or has changed)
-            if force and os.path.isdir(workdir):
-                shutil.rmtree(workdir, ignore_errors=True)          # NB: This can also be done in parallel on the cluster if it takes too much time
-            for report in reports:
-                os.remove(report)
+            if not dryrun:
+                if force and os.path.isdir(workdir):
+                    shutil.rmtree(workdir, ignore_errors=True)          # NB: This can also be done in parallel on the cluster if it takes too much time
+                for report in reports:
+                    os.remove(report)
 
             command = """qsub -l walltime=24:00:00,mem={mem_gb}gb -N mriqc_{sub_id}_{ses_id} <<EOF
                          module add mriqc; cd {pwd}
