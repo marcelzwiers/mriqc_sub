@@ -37,23 +37,28 @@ def main(bidsdir, outputdir, workdir_, sessions=(), force=False, mem_gb=18, args
             print('>>> Directory does not exist: ' + session)
             continue
 
-        sub_id = session.rsplit('sub-')[1].split(os.sep)[0]
-        ses_id = session.rsplit('ses-')[1]
+        sub_id = 'sub-' + session.rsplit('sub-')[1].split(os.sep)[0]
+        if 'ses-' in session:
+            ses_id     = 'ses-' + session.rsplit('ses-')[1]
+            ses_id_opt = f' --session-id {ses_id[4:]}'
+        else:
+            ses_id     = ''
+            ses_id_opt = ''
 
         if not workdir_:
-            workdir = os.path.join(os.sep, 'tmp', os.environ['USER'], 'work_mriqc', f'sub-{sub_id}_ses-{ses_id}_{uuid.uuid4()}')
+            workdir = os.path.join(os.sep, 'tmp', os.environ['USER'], 'work_mriqc', f'{sub_id}_{ses_id}_{uuid.uuid4()}')
             cleanup = 'rm -rf ' + workdir
         else:
-            workdir = os.path.join(workdir_, f'sub-{sub_id}_ses-{ses_id}')
+            workdir = os.path.join(workdir_, f'{sub_id}_{ses_id}')
             cleanup = ''
 
         # A session is considered already done if there are html-reports for every anat/*_T?w and every func/*_bold file
-        jsonfiles = glob.glob(os.path.join(bidsdir, 'sub-'+sub_id, 'ses-'+ses_id, 'anat',       f'sub-{sub_id}_ses-{ses_id}_*_T?w.json')) + \
-                    glob.glob(os.path.join(bidsdir, 'sub-'+sub_id, 'ses-'+ses_id, 'extra_data', f'sub-{sub_id}_ses-{ses_id}_*_T?w.json')) + \
-                    glob.glob(os.path.join(bidsdir, 'sub-'+sub_id, 'ses-'+ses_id, 'func',       f'sub-{sub_id}_ses-{ses_id}_*_bold.json')) + \
-                    glob.glob(os.path.join(bidsdir, 'sub-'+sub_id, 'ses-'+ses_id, 'extra_data', f'sub-{sub_id}_ses-{ses_id}_*_bold.json'))
-        reports   = glob.glob(os.path.join(outputdir, 'mriqc', f'sub-{sub_id}_ses-{ses_id}_*.html'))
-        print(f'\n>>> Found {len(reports)}/{len(jsonfiles)} existing MRIQC-reports for: sub-{sub_id}_ses-{ses_id}')
+        jsonfiles = glob.glob(os.path.join(bidsdir, sub_id, ses_id, 'anat',       f'{sub_id}_{ses_id}*_T?w.json')) + \
+                    glob.glob(os.path.join(bidsdir, sub_id, ses_id, 'extra_data', f'{sub_id}_{ses_id}*_T?w.json')) + \
+                    glob.glob(os.path.join(bidsdir, sub_id, ses_id, 'func',       f'{sub_id}_{ses_id}*_bold.json')) + \
+                    glob.glob(os.path.join(bidsdir, sub_id, ses_id, 'extra_data', f'{sub_id}_{ses_id}*_bold.json'))
+        reports   = glob.glob(os.path.join(outputdir, 'mriqc', f'{sub_id}_{ses_id}*.html'))
+        print(f'\n>>> Found {len(reports)}/{len(jsonfiles)} existing MRIQC-reports for: {sub_id}_{ses_id}')
         if force or not len(reports)==len(jsonfiles):
 
             # Submit the mriqc jobs to the cluster
@@ -82,22 +87,23 @@ def main(bidsdir, outputdir, workdir_, sessions=(), force=False, mem_gb=18, args
                 for report in reports:
                     os.remove(report)
 
-            command = """qsub -l walltime=24:00:00,mem={mem_gb}gb -N mriqc_{sub_id}_{ses_id} <<EOF
+            command = """qsub -l walltime=24:00:00,mem={mem_gb}gb -N mriqc_sub-{sub_id}_{ses_id} <<EOF
                          module add mriqc; cd {pwd}
-                         {mriqc} {bidsdir} {outputdir} participant -w {workdir} --participant-label {sub_id} --session-id {ses_id} --verbose-reports --mem_gb {mem_gb} --ants-nthreads 1 --nprocs 1 {args}
+                         {mriqc} {bidsdir} {outputdir} participant -w {workdir} --participant-label {sub_id} {ses_id_opt} --verbose-reports --mem_gb {mem_gb} --ants-nthreads 1 --nprocs 1 {args}
                          {cleanup}\nEOF"""\
                          .format(pwd        = os.getcwd(),
                                  mriqc      = f'unset PYTHONPATH; export PYTHONNOUSERSITE=1; singularity run {os.getenv("DCCN_OPT_DIR")}/mriqc/{os.getenv("MRIQC_VERSION")}/mriqc-{os.getenv("MRIQC_VERSION")}.simg',
                                  bidsdir    = bidsdir,
                                  outputdir  = os.path.join(outputdir,'mriqc'),
                                  workdir    = workdir,
-                                 sub_id     = sub_id,
+                                 sub_id     = sub_id[4:],
                                  ses_id     = ses_id,
+                                 ses_id_opt = ses_id_opt,
                                  mem_gb     = mem_gb,
                                  args       = argstr,
                                  cleanup    = cleanup)
-            running = subprocess.run('if [ ! -z "$(qselect -s RQH)" ]; then qstat -f $(qselect -s RQH) | grep Job_Name | grep mriqc_; fi', stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-            if skip and 'mriqc_' + sub_id + '_' + ses_id in running.stdout.decode():
+            running = subprocess.run('if [ ! -z "$(qselect -s RQH)" ]; then qstat -f $(qselect -s RQH) | grep Job_Name | grep mriqc_sub; fi', stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+            if skip and f'mriqc_{sub_id}_{ses_id}' in running.stdout.decode():
                 print(f'--> Skipping already running / scheduled job ({n+1}/{len(sessions)}): mriqc_{sub_id}_{ses_id}')
             else:
                 print(f'--> Submitting job ({n+1}/{len(sessions)}):\n{command}')
