@@ -34,8 +34,8 @@ def main(bidsdir, outputdir, force=False, mem_gb=1, argstr=''):
             print('WARNING: Job submission failed with error-code {}\n'.format(proc.returncode))
         else:
             print('\n----------------\n'
-                  'Done! Now wait for the jobs to finish... Check that e.g. with this command:\n\n'
-                  '  qstat $(qselect -N mriqc_group\n\n')
+                  'Done! Now wait for the job to finish... Check that e.g. with this command:\n\n'
+                  '  qstat $(qselect -N mriqc_group)\n\n')
 
 
 # Shell usage

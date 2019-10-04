@@ -59,26 +59,9 @@ def main(bidsdir, outputdir, workdir_, sessions=(), force=False, mem_gb=18, args
                     glob.glob(os.path.join(bidsdir, sub_id, ses_id, 'extra_data', f'{sub_id}_{ses_id}*_bold.json'))
         reports   = glob.glob(os.path.join(outputdir, 'mriqc', f'{sub_id}_{ses_id}*.html'))
         print(f'\n>>> Found {len(reports)}/{len(jsonfiles)} existing MRIQC-reports for: {sub_id}_{ses_id}')
-        if force or not len(reports)==len(jsonfiles):
 
-            # Submit the mriqc jobs to the cluster
-            # usage: mriqc [-h] [--version]
-            #              [--participant_label PARTICIPANT_LABEL [PARTICIPANT_LABEL ...]]
-            #              [--session-id SESSION_ID [SESSION_ID ...]]
-            #              [--run-id RUN_ID [RUN_ID ...]] [--task-id TASK_ID [TASK_ID ...]]
-            #              [-m [{T1w,bold,T2w} [{T1w,bold,T2w} ...]]] [-w WORK_DIR]
-            #              [--report-dir REPORT_DIR] [--verbose-reports] [--write-graph]
-            #              [--dry-run] [--profile] [--use-plugin USE_PLUGIN] [--no-sub]
-            #              [--email EMAIL] [-v] [--webapi-url WEBAPI_URL]
-            #              [--webapi-port WEBAPI_PORT] [--upload-strict] [--n_procs N_PROCS]
-            #              [--mem_gb MEM_GB] [--testing] [-f] [--ica] [--hmc-afni]
-            #              [--hmc-fsl] [--fft-spikes-detector] [--fd_thres FD_THRES]
-            #              [--ants-nthreads ANTS_NTHREADS] [--ants-float]
-            #              [--ants-settings ANTS_SETTINGS] [--deoblique] [--despike]
-            #              [--start-idx START_IDX] [--stop-idx STOP_IDX]
-            #              [--correct-slice-timing]
-            #              bids_dir output_dir {participant,group} [{participant,group} ...]
-            # mriqc --verbose-reports -w mriqc/work/010 --participant_label 010 --mem_gb 23 --ants-nthreads 1 --nprocs 1 bids/ mriqc/ participant
+        # Submit the mriqc job to the cluster
+        if force or not len(reports)==len(jsonfiles):
 
             # Start with a clean directory if we are forcing to reprocess the data (as presumably something went wrong or has changed)
             if not dryrun:
@@ -116,11 +99,9 @@ def main(bidsdir, outputdir, workdir_, sessions=(), force=False, mem_gb=18, args
             print(f'--> Nothing to do for job ({n+1}/{len(sessions)}): {session}')
 
     print('\n----------------\n'
-          'Done! Now wait for the jobs to finish... Then you can run e.g. a group-level QC analysis like this:\n\n'
-          '  source activate /opt/mriqc\n'
-          '  mriqc {bidsdir} {outputdir}{filesep}mriqc group\n\n'
-          'For more details, see:\n\n'
-          '  mriqc -h\n '.format(bidsdir=bidsdir, outputdir=outputdir, filesep=os.sep))
+          'Done! Now wait for the jobs to finish... Check that e.g. with this command:\n\n  qstat -a $(qselect -s RQ) | grep mriqc_sub\n\n'
+          'When finished you can run e.g. a group-level QC analysis like this:\n\n'
+          '  mriqc_group {bidsdir}\n\n'.format(bidsdir=bidsdir))
 
 
 # Shell usage
