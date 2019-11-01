@@ -16,7 +16,7 @@ import subprocess
 import uuid
 
 
-def main(bidsdir, outputdir, workdir_, sessions=(), force=False, mem_gb=18, argstr='', dryrun=False, skip=True):
+def main(bidsdir, outputdir, workdir, sessions=(), force=False, mem_gb=18, argstr='', dryrun=False, skip=True):
 
     # Default
     if not outputdir:
@@ -45,12 +45,10 @@ def main(bidsdir, outputdir, workdir_, sessions=(), force=False, mem_gb=18, args
             ses_id     = ''
             ses_id_opt = ''
 
-        if not workdir_:
-            workdir = os.path.join(os.sep, 'tmp', os.environ['USER'], 'work_mriqc', f'{sub_id}_{ses_id}_{uuid.uuid4()}')
-            cleanup = 'rm -rf ' + workdir
+        if not workdir:
+            workdir = os.path.join(os.sep, 'data', os.environ['USER'], '\$\{PBS_JOBID\}')
         else:
-            workdir = os.path.join(workdir_, f'{sub_id}_{ses_id}')
-            cleanup = ''
+            workdir = os.path.join(workdir, f'{sub_id}_{ses_id}')
 
         # A session is considered already done if there are html-reports for every anat/*_T?w and every func/*_bold file
         jsonfiles = glob.glob(os.path.join(bidsdir, sub_id, ses_id, 'anat',       f'{sub_id}_{ses_id}*_T?w.json')) + \
@@ -70,10 +68,9 @@ def main(bidsdir, outputdir, workdir_, sessions=(), force=False, mem_gb=18, args
                 for report in reports:
                     os.remove(report)
 
-            command = """qsub -l walltime=24:00:00,mem={mem_gb}gb -N mriqc_sub-{sub_id}_{ses_id} <<EOF
+            command = """qsub -l walltime=24:00:00,mem={mem_gb}gb,epilogue={epilogue} -N mriqc_sub-{sub_id}_{ses_id} <<EOF
                          module add mriqc; cd {pwd}
-                         {mriqc} {bidsdir} {outputdir} participant -w {workdir} --participant-label {sub_id} {ses_id_opt} --verbose-reports --mem_gb {mem_gb} --ants-nthreads 1 --nprocs 1 {args}
-                         {cleanup}\nEOF"""\
+                         {mriqc} {bidsdir} {outputdir} participant -w {workdir} --participant-label {sub_id} {ses_id_opt} --verbose-reports --mem_gb {mem_gb} --ants-nthreads 1 --nprocs 1 {args}\nEOF"""\
                          .format(pwd        = os.getcwd(),
                                  mriqc      = f'unset PYTHONPATH; export PYTHONNOUSERSITE=1; singularity run {os.getenv("DCCN_OPT_DIR")}/mriqc/{os.getenv("MRIQC_VERSION")}/mriqc-{os.getenv("MRIQC_VERSION")}.simg',
                                  bidsdir    = bidsdir,
@@ -84,7 +81,7 @@ def main(bidsdir, outputdir, workdir_, sessions=(), force=False, mem_gb=18, args
                                  ses_id_opt = ses_id_opt,
                                  mem_gb     = mem_gb,
                                  args       = argstr,
-                                 cleanup    = cleanup)
+                                 epilogue   = f'{os.getenv("DCCN_OPT_DIR")}/mriqc/epilogue.sh')
             running = subprocess.run('if [ ! -z "$(qselect -s RQH)" ]; then qstat -f $(qselect -s RQH) | grep Job_Name | grep mriqc_sub; fi', stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
             if skip and f'mriqc_{sub_id}_{ses_id}' in running.stdout.decode():
                 print(f'--> Skipping already running / scheduled job ({n+1}/{len(sessions)}): mriqc_{sub_id}_{ses_id}')
