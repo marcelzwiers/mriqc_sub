@@ -11,70 +11,73 @@ group level report and the features CSV table)
 
 import os
 import shutil
-import glob
 import subprocess
-import uuid
+from pathlib import Path
 
 
-def main(bidsdir, outputdir, workdir, sessions=(), force=False, mem_gb=18, argstr='', dryrun=False, skip=True):
+def main(bidsdir: str, outputdir: str, workdir: str, sessions=(), force=False, mem_gb=18, argstr='', dryrun=False, skip=True):
 
     # Default
-    if not outputdir:
-        outputdir = os.path.join(bidsdir,'derivatives')             # NB: A mriqc subfolder is added to the outputdir later to be match the BIDS drivatives draft of one folder per pipeline
+    bidsdir   = Path(bidsdir)
+    outputdir = Path(outputdir)
+    workdir   = Path(workdir)
+    if not outputdir.name:
+        outputdir = bidsdir/'derivatives'               # NB: A mriqc subfolder is added to the outputdir later to be match the BIDS drivatives draft of one folder per pipeline
 
     # Map the bids session-directories
     if not sessions:
-        sessions = glob.glob(os.path.join(bidsdir, 'sub-*'+os.sep+'ses-*'))
+        sessions = list(bidsdir.glob('sub-*/ses-*'))
         if not sessions:
-            sessions = glob.glob(os.path.join(bidsdir, 'sub-*'))    # Try without session-subfolders
+            sessions = list(bidsdir.glob('sub-*'))      # Try without session-subfolders
     else:
-        sessions = [os.path.join(bidsdir, session) for session in sessions]
+        sessions = [bidsdir/session for session in sessions]
 
     # Loop over bids session-directories and submit a job for every (new) session
     for n, session in enumerate(sessions):
 
-        if not os.path.isdir(session):
-            print('>>> Directory does not exist: ' + session)
+        if not session.is_dir():
+            print(f">>> Directory does not exist: {session}")
             continue
 
-        sub_id = 'sub-' + session.rsplit('sub-')[1].split(os.sep)[0]
-        if 'ses-' in session:
-            ses_id     = 'ses-' + session.rsplit('ses-')[1]
-            ses_id_opt = f' --session-id {ses_id[4:]}'
+        sub_id = [part for part in session.parts if part.startswith('sub-')][0]
+        ses_id = [part for part in session.parts if part.startswith('ses-')]
+        if ses_id:
+            ses_id     = ses_id[0]
+            ses_id_opt = f" --session-id {ses_id[4:]}"
         else:
             ses_id     = ''
             ses_id_opt = ''
 
-        if not workdir:
-            workdir = os.path.join(os.sep, 'data', os.environ['USER'], '\$\{PBS_JOBID\}')
+        if not workdir.name:
+            workdir = Path('/data')/os.environ['USER']/'\$\{PBS_JOBID\}'
         else:
-            workdir = os.path.join(workdir, f'{sub_id}_{ses_id}')
+            workdir = workdir/f"{sub_id}_{ses_id}"
 
         # A session is considered already done if there are html-reports for every anat/*_T?w and every func/*_bold file
-        jsonfiles = glob.glob(os.path.join(bidsdir, sub_id, ses_id, 'anat',       f'{sub_id}_{ses_id}*_T?w.json')) + \
-                    glob.glob(os.path.join(bidsdir, sub_id, ses_id, 'extra_data', f'{sub_id}_{ses_id}*_T?w.json')) + \
-                    glob.glob(os.path.join(bidsdir, sub_id, ses_id, 'func',       f'{sub_id}_{ses_id}*_bold.json')) + \
-                    glob.glob(os.path.join(bidsdir, sub_id, ses_id, 'extra_data', f'{sub_id}_{ses_id}*_bold.json'))
-        reports   = glob.glob(os.path.join(outputdir, 'mriqc', f'{sub_id}_{ses_id}*.html'))
-        print(f'\n>>> Found {len(reports)}/{len(jsonfiles)} existing MRIQC-reports for: {sub_id}_{ses_id}')
+        nrjsonfiles = len(list((bidsdir/sub_id/ses_id/'anat')      .glob(f"{sub_id}_{ses_id}*T?w.json")))  + \
+                      len(list((bidsdir/sub_id/ses_id/'extra_data').glob(f"{sub_id}_{ses_id}*T?w.json")))  + \
+                      len(list((bidsdir/sub_id/ses_id/'func')      .glob(f"{sub_id}_{ses_id}*bold.json"))) + \
+                      len(list((bidsdir/sub_id/ses_id/'extra_data').glob(f"{sub_id}_{ses_id}*bold.json")))
+        reports     = (outputdir/'mriqc').glob(f"{sub_id}_{ses_id}*.html")
+        print(f"\n>>> Found {len(list(reports))}/{nrjsonfiles} existing MRIQC-reports for: {sub_id}_{ses_id}")
 
         # Submit the mriqc job to the cluster
-        if force or not len(reports)==len(jsonfiles):
+        if force or not len(list(reports))==nrjsonfiles:
 
             # Start with a clean directory if we are forcing to reprocess the data (as presumably something went wrong or has changed)
             if not dryrun:
-                if force and os.path.isdir(workdir):
+                if force and workdir.is_dir():
                     shutil.rmtree(workdir, ignore_errors=True)          # NB: This can also be done in parallel on the cluster if it takes too much time
                 for report in reports:
-                    os.remove(report)
+                    report.unlink()
 
             command = """qsub -l walltime=24:00:00,mem={mem_gb}gb,epilogue={epilogue} -N mriqc_sub-{sub_id}_{ses_id} <<EOF
                          module add mriqc; cd {pwd}
                          {mriqc} {bidsdir} {outputdir} participant -w {workdir} --participant-label {sub_id} {ses_id_opt} --verbose-reports --mem_gb {mem_gb} --ants-nthreads 1 --nprocs 1 {args}\nEOF"""\
-                         .format(pwd        = os.getcwd(),
+                         .format(pwd        = Path.cwd(),
                                  mriqc      = f'unset PYTHONPATH; export PYTHONNOUSERSITE=1; singularity run {os.getenv("DCCN_OPT_DIR")}/mriqc/{os.getenv("MRIQC_VERSION")}/mriqc-{os.getenv("MRIQC_VERSION")}.simg',
                                  bidsdir    = bidsdir,
-                                 outputdir  = os.path.join(outputdir,'mriqc'),
+                                 outputdir  = outputdir/'mriqc',
                                  workdir    = workdir,
                                  sub_id     = sub_id[4:],
                                  ses_id     = ses_id,
@@ -83,17 +86,17 @@ def main(bidsdir, outputdir, workdir, sessions=(), force=False, mem_gb=18, argst
                                  args       = argstr,
                                  epilogue   = f'{os.getenv("DCCN_OPT_DIR")}/mriqc/dccn/epilogue.sh')
             running = subprocess.run('if [ ! -z "$(qselect -s RQH)" ]; then qstat -f $(qselect -s RQH) | grep Job_Name | grep mriqc_sub; fi', stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-            if skip and f'mriqc_{sub_id}_{ses_id}' in running.stdout.decode():
-                print(f'--> Skipping already running / scheduled job ({n+1}/{len(sessions)}): mriqc_{sub_id}_{ses_id}')
+            if skip and f"mriqc_{sub_id}_{ses_id}" in running.stdout.decode():
+                print(f"--> Skipping already running / scheduled job ({n+1}/{len(sessions)}): mriqc_{sub_id}_{ses_id}")
             else:
-                print(f'--> Submitting job ({n+1}/{len(sessions)}):\n{command}')
+                print(f"--> Submitting job ({n+1}/{len(sessions)}):\n{command}")
                 if not dryrun:
                     proc = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
                     if proc.returncode != 0:
-                        print('WARNING: Job submission failed with error-code {}\n'.format(proc.returncode))
+                        print(f"WARNING: Job submission failed with error-code {proc.returncode}\n")
 
         else:
-            print(f'--> Nothing to do for job ({n+1}/{len(sessions)}): {session}')
+            print(f"--> Nothing to do for job ({n+1}/{len(sessions)}): {session}")
 
     print('\n----------------\n'
           'Done! Now wait for the jobs to finish... Check that e.g. with this command:\n\n  qstat -a $(qselect -s RQ) | grep mriqc_sub\n\n'
@@ -124,8 +127,8 @@ if __name__ == "__main__":
                                             'Author:\n' 
                                             '  Marcel Zwiers\n ')
     parser.add_argument('bidsdir',          help='The bids-directory with the (new) subject data')
-    parser.add_argument('-o','--outputdir', help='The output-directory where the mriqc-reports are stored (None -> bidsdir/derivatives)')
-    parser.add_argument('-w','--workdir',   help='The working-directory where intermediate files are stored (None -> temporary directory')
+    parser.add_argument('-o','--outputdir', help='The output-directory where the mriqc-reports are stored (default = bidsdir/derivatives)', default='derivatives')
+    parser.add_argument('-w','--workdir',   help='The working-directory where intermediate files are stored (default = temporary directory', default='')
     parser.add_argument('-s','--sessions',  help='Space separated list of selected sub-#/ses-# names / folders to be processed. Otherwise all sessions in the bidsfolder will be selected', nargs='+')
     parser.add_argument('-f','--force',     help='If this flag is given subjects will be processed, regardless of existing folders in the bidsfolder. Otherwise existing folders will be skipped', action='store_true')
     parser.add_argument('-i','--ignore',    help='If this flag is given then already running or scheduled jobs with the same name are ignored, otherwise job submission is skipped', action='store_false')
@@ -134,4 +137,4 @@ if __name__ == "__main__":
     parser.add_argument('-d','--dryrun',    help='Add this flag to just print the mriqc qsub commands without actually submitting them (useful for debugging)', action='store_true')
     args = parser.parse_args()
 
-    main(bidsdir=args.bidsdir, outputdir=args.outputdir, workdir_=args.workdir, sessions=args.sessions, force=args.force, mem_gb=args.mem_gb, argstr=args.args, dryrun=args.dryrun, skip=args.ignore)
+    main(bidsdir=args.bidsdir, outputdir=args.outputdir, workdir=args.workdir, sessions=args.sessions, force=args.force, mem_gb=args.mem_gb, argstr=args.args, dryrun=args.dryrun, skip=args.ignore)
