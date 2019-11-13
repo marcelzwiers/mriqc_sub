@@ -126,7 +126,7 @@ if __name__ == "__main__":
                                             'Author:\n' 
                                             '  Marcel Zwiers\n ')
     parser.add_argument('bidsdir',          help='The bids-directory with the (new) subject data')
-    parser.add_argument('-o','--outputdir', help='The output-directory where the mriqc-reports are stored (default = bidsdir/derivatives)', default='derivatives')
+    parser.add_argument('-o','--outputdir', help='The output-directory where the mriqc-reports are stored (default = bidsdir/derivatives)', default='')
     parser.add_argument('-w','--workdir',   help='The working-directory where intermediate files are stored (default = temporary directory', default='')
     parser.add_argument('-s','--sessions',  help='Space separated list of selected sub-#/ses-# names / folders to be processed. Otherwise all sessions in the bidsfolder will be selected', nargs='+')
     parser.add_argument('-f','--force',     help='If this flag is given subjects will be processed, regardless of existing folders in the bidsfolder. Otherwise existing folders will be skipped', action='store_true')
