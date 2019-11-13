@@ -15,12 +15,11 @@ import subprocess
 from pathlib import Path
 
 
-def main(bidsdir: str, outputdir: str, workdir: str, sessions=(), force=False, mem_gb=18, argstr='', dryrun=False, skip=True):
+def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, mem_gb=18, argstr='', dryrun=False, skip=True):
 
     # Default
     bidsdir   = Path(bidsdir)
     outputdir = Path(outputdir)
-    workdir   = Path(workdir)
     if not outputdir.name:
         outputdir = bidsdir/'derivatives'               # NB: A mriqc subfolder is added to the outputdir later to be match the BIDS drivatives draft of one folder per pipeline
 
@@ -48,10 +47,10 @@ def main(bidsdir: str, outputdir: str, workdir: str, sessions=(), force=False, m
             ses_id     = ''
             ses_id_opt = ''
 
-        if not workdir.name:
+        if not workdir_:
             workdir = Path('/data')/os.environ['USER']/'\$\{PBS_JOBID\}'
         else:
-            workdir = workdir/f"{sub_id}_{ses_id}"
+            workdir = Path(workdir_)/f"{sub_id}_{ses_id}"
 
         # A session is considered already done if there are html-reports for every anat/*_T?w and every func/*_bold file
         nrjsonfiles = len(list((bidsdir/sub_id/ses_id/'anat')      .glob(f"{sub_id}_{ses_id}*T?w.json")))  + \
@@ -137,4 +136,4 @@ if __name__ == "__main__":
     parser.add_argument('-d','--dryrun',    help='Add this flag to just print the mriqc qsub commands without actually submitting them (useful for debugging)', action='store_true')
     args = parser.parse_args()
 
-    main(bidsdir=args.bidsdir, outputdir=args.outputdir, workdir=args.workdir, sessions=args.sessions, force=args.force, mem_gb=args.mem_gb, argstr=args.args, dryrun=args.dryrun, skip=args.ignore)
+    main(bidsdir=args.bidsdir, outputdir=args.outputdir, workdir_=args.workdir, sessions=args.sessions, force=args.force, mem_gb=args.mem_gb, argstr=args.args, dryrun=args.dryrun, skip=args.ignore)
