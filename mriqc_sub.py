@@ -53,15 +53,15 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
             workdir = Path(workdir_)/f"{sub_id}_{ses_id}"
 
         # A session is considered already done if there are html-reports for every anat/*_T?w and every func/*_bold file
-        nrjsonfiles = len(list((bidsdir/sub_id/ses_id/'anat')      .glob(f"{sub_id}_{ses_id}*T?w.json")))  + \
-                      len(list((bidsdir/sub_id/ses_id/'extra_data').glob(f"{sub_id}_{ses_id}*T?w.json")))  + \
-                      len(list((bidsdir/sub_id/ses_id/'func')      .glob(f"{sub_id}_{ses_id}*bold.json"))) + \
-                      len(list((bidsdir/sub_id/ses_id/'extra_data').glob(f"{sub_id}_{ses_id}*bold.json")))
-        reports     = (outputdir/'mriqc').glob(f"{sub_id}_{ses_id}*.html")
-        print(f"\n>>> Found {len(list(reports))}/{nrjsonfiles} existing MRIQC-reports for: {sub_id}_{ses_id}")
+        nrniifiles = len(list((bidsdir/sub_id/ses_id/'anat')      .glob(f"{sub_id}_{ses_id}*T?w.nii*")))  + \
+                     len(list((bidsdir/sub_id/ses_id/'extra_data').glob(f"{sub_id}_{ses_id}*T?w.nii*")))  + \
+                     len(list((bidsdir/sub_id/ses_id/'func')      .glob(f"{sub_id}_{ses_id}*bold.nii*"))) + \
+                     len(list((bidsdir/sub_id/ses_id/'extra_data').glob(f"{sub_id}_{ses_id}*bold.nii*")))
+        reports    = list((outputdir/'mriqc').glob(f"{sub_id}_{ses_id}*.html"))
+        print(f"\n>>> Found {len(reports)}/{nrniifiles} existing MRIQC-reports for: {sub_id}_{ses_id}")
 
         # Submit the mriqc job to the cluster
-        if force or not len(list(reports))==nrjsonfiles:
+        if force or not len(reports)==nrniifiles:
 
             # Start with a clean directory if we are forcing to reprocess the data (as presumably something went wrong or has changed)
             if not dryrun:
@@ -131,7 +131,7 @@ if __name__ == "__main__":
     parser.add_argument('-s','--sessions',  help='Space separated list of selected sub-#/ses-# names / folders to be processed. Otherwise all sessions in the bidsfolder will be selected', nargs='+')
     parser.add_argument('-f','--force',     help='If this flag is given subjects will be processed, regardless of existing folders in the bidsfolder. Otherwise existing folders will be skipped', action='store_true')
     parser.add_argument('-i','--ignore',    help='If this flag is given then already running or scheduled jobs with the same name are ignored, otherwise job submission is skipped', action='store_false')
-    parser.add_argument('-m','--mem_gb',    help='Maximum required amount of memory', default=18, type=int)
+    parser.add_argument('-m','--mem_gb',    help='Required amount of memory', default=18, type=int)
     parser.add_argument('-a','--args',      help='Additional arguments that are passed to mriqc (NB: Use quotes to prevent parsing of spaces)', type=str, default='')
     parser.add_argument('-d','--dryrun',    help='Add this flag to just print the mriqc qsub commands without actually submitting them (useful for debugging)', action='store_true')
     args = parser.parse_args()
