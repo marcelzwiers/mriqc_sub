@@ -19,7 +19,7 @@ def main(bidsdir, outputdir, force=False, mem_gb=1, argstr=''):
                  module add mriqc; cd {pwd}
                  {mriqc} {bidsdir} {outputdir} group --nprocs 1 {args}\nEOF"""\
                  .format(pwd       = os.getcwd(),
-                         mriqc     = f'unset PYTHONPATH; export PYTHONNOUSERSITE=1; singularity run {os.getenv("DCCN_OPT_DIR")}/mriqc/{os.getenv("MRIQC_VERSION")}/mriqc-{os.getenv("MRIQC_VERSION")}.simg',
+                         mriqc     = f'unset PYTHONPATH; export PYTHONNOUSERSITE=1; singularity run --cleanenv {os.getenv("DCCN_OPT_DIR")}/mriqc/{os.getenv("MRIQC_VERSION")}/mriqc-{os.getenv("MRIQC_VERSION")}.simg',
                          bidsdir   = bidsdir,
                          outputdir = outputdir,
                          mem_gb    = mem_gb,
