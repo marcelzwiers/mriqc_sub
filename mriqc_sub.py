@@ -74,7 +74,7 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
                          module add mriqc; cd {pwd}
                          {mriqc} {bidsdir} {outputdir} participant -w {workdir} --participant-label {sub_id} {ses_id_opt} --verbose-reports --mem_gb {mem_gb} --ants-nthreads 1 --nprocs 1 {args}\nEOF"""\
                          .format(pwd        = Path.cwd(),
-                                 mriqc      = f'unset PYTHONPATH; export PYTHONNOUSERSITE=1; singularity run {os.getenv("DCCN_OPT_DIR")}/mriqc/{os.getenv("MRIQC_VERSION")}/mriqc-{os.getenv("MRIQC_VERSION")}.simg',
+                                 mriqc      = f'unset PYTHONPATH; export PYTHONNOUSERSITE=1; singularity run --cleanenv {os.getenv("DCCN_OPT_DIR")}/mriqc/{os.getenv("MRIQC_VERSION")}/mriqc-{os.getenv("MRIQC_VERSION")}.simg',
                                  bidsdir    = bidsdir,
                                  outputdir  = outputdir/'mriqc',
                                  workdir    = workdir,
