@@ -15,7 +15,7 @@ import subprocess
 from pathlib import Path
 
 
-def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, mem_gb=18, argstr='', dryrun=False, skip=True):
+def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, mem_gb=18, file_gb_=50, argstr='', dryrun=False, skip=True):
 
     # Default
     bidsdir   = Path(bidsdir)
@@ -49,8 +49,10 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
 
         if not workdir_:
             workdir = Path('/data')/os.environ['USER']/'\$\{PBS_JOBID\}'
+            file_gb = f"file={file_gb_}gb,"
         else:
             workdir = Path(workdir_)/f"{sub_id}_{ses_id}"
+            file_gb = ''                                                 # We don't need to allocate local scratch space
 
         # A session is considered already done if there are html-reports for every anat/*_T?w and every func/*_bold file
         nrniifiles = len(list((bidsdir/sub_id/ses_id/'anat')      .glob(f"{sub_id}_{ses_id}*T?w.nii*")))  + \
@@ -70,8 +72,8 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
                 for report in reports:
                     report.unlink()
 
-            command = """qsub -l walltime=24:00:00,mem={mem_gb}gb,epilogue={epilogue} -N mriqc_sub-{sub_id}_{ses_id} <<EOF
-                         module add mriqc; cd {pwd}
+            command = """qsub -l walltime=24:00:00,mem={mem_gb}gb,{file_gb},epilogue={epilogue} -N mriqc_sub-{sub_id}_{ses_id} <<EOF
+                         cd {pwd}
                          {mriqc} {bidsdir} {outputdir} participant -w {workdir} --participant-label {sub_id} {ses_id_opt} --verbose-reports --mem_gb {mem_gb} --ants-nthreads 1 --nprocs 1 {args}\nEOF"""\
                          .format(pwd        = Path.cwd(),
                                  mriqc      = f'unset PYTHONPATH; export PYTHONNOUSERSITE=1; singularity run --cleanenv {os.getenv("DCCN_OPT_DIR")}/mriqc/{os.getenv("MRIQC_VERSION")}/mriqc-{os.getenv("MRIQC_VERSION")}.simg',
@@ -82,6 +84,7 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
                                  ses_id     = ses_id,
                                  ses_id_opt = ses_id_opt,
                                  mem_gb     = mem_gb,
+                                 file_gb    = file_gb,
                                  args       = argstr,
                                  epilogue   = f'{os.getenv("DCCN_OPT_DIR")}/mriqc/dccn/epilogue.sh')
             running = subprocess.run('if [ ! -z "$(qselect -s RQH)" ]; then qstat -f $(qselect -s RQH) | grep Job_Name | grep mriqc_sub; fi', stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
@@ -132,8 +135,9 @@ if __name__ == "__main__":
     parser.add_argument('-f','--force',     help='If this flag is given subjects will be processed, regardless of existing folders in the bidsfolder. Otherwise existing folders will be skipped', action='store_true')
     parser.add_argument('-i','--ignore',    help='If this flag is given then already running or scheduled jobs with the same name are ignored, otherwise job submission is skipped', action='store_false')
     parser.add_argument('-m','--mem_gb',    help='Required amount of memory', default=18, type=int)
+    parser.add_argument('-t','--temp_gb',   help='Required free diskspace of the local temporary workdir (in gb)', default=50, type=int)
     parser.add_argument('-a','--args',      help='Additional arguments that are passed to mriqc (NB: Use quotes to prevent parsing of spaces)', type=str, default='')
     parser.add_argument('-d','--dryrun',    help='Add this flag to just print the mriqc qsub commands without actually submitting them (useful for debugging)', action='store_true')
     args = parser.parse_args()
 
-    main(bidsdir=args.bidsdir, outputdir=args.outputdir, workdir_=args.workdir, sessions=args.sessions, force=args.force, mem_gb=args.mem_gb, argstr=args.args, dryrun=args.dryrun, skip=args.ignore)
+    main(bidsdir=args.bidsdir, outputdir=args.outputdir, workdir_=args.workdir, sessions=args.sessions, force=args.force, mem_gb=args.mem_gb, file_gb_=args.temp_gb, argstr=args.args, dryrun=args.dryrun, skip=args.ignore)
