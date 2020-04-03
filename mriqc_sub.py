@@ -72,7 +72,7 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
                 for report in reports:
                     report.unlink()
 
-            command = """qsub -l walltime=24:00:00,mem={mem_gb}gb,{file_gb},epilogue={epilogue} -N mriqc_sub-{sub_id}_{ses_id} <<EOF
+            command = """qsub -l walltime=24:00:00,mem={mem_gb}gb,{file_gb}epilogue={epilogue} -N mriqc_sub-{sub_id}_{ses_id} <<EOF
                          cd {pwd}
                          {mriqc} {bidsdir} {outputdir} participant -w {workdir} --participant-label {sub_id} {ses_id_opt} --verbose-reports --mem_gb {mem_gb} --ants-nthreads 1 --nprocs 1 {args}\nEOF"""\
                          .format(pwd        = Path.cwd(),
