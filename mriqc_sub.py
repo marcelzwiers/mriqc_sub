@@ -48,8 +48,8 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
             ses_id_opt = ''
 
         if not workdir_:
-            workdir = Path('/data')/os.environ['USER']/'\$\{PBS_JOBID\}'
-            file_gb = f"file={file_gb_}gb,"
+            workdir = Path('\$TMPDIR')
+            file_gb = f",file={file_gb_}gb"
         else:
             workdir = Path(workdir_)/f"{sub_id}_{ses_id}"
             file_gb = ''                                                 # We don't need to allocate local scratch space
@@ -72,7 +72,7 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
                 for report in reports:
                     report.unlink()
 
-            command = """qsub -l walltime=24:00:00,mem={mem_gb}gb,{file_gb}epilogue={epilogue} -N mriqc_sub-{sub_id}_{ses_id} <<EOF
+            command = """qsub -l walltime=24:00:00,mem={mem_gb}gb{file_gb} -N mriqc_sub-{sub_id}_{ses_id} <<EOF
                          cd {pwd}
                          {mriqc} {bidsdir} {outputdir} participant -w {workdir} --participant-label {sub_id} {ses_id_opt} --verbose-reports --mem_gb {mem_gb} --ants-nthreads 1 --nprocs 1 {args}\nEOF"""\
                          .format(pwd        = Path.cwd(),
@@ -85,8 +85,7 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
                                  ses_id_opt = ses_id_opt,
                                  mem_gb     = mem_gb,
                                  file_gb    = file_gb,
-                                 args       = argstr,
-                                 epilogue   = f'{os.getenv("DCCN_OPT_DIR")}/mriqc/dccn/epilogue.sh')
+                                 args       = argstr)
             running = subprocess.run('if [ ! -z "$(qselect -s RQH)" ]; then qstat -f $(qselect -s RQH) | grep Job_Name | grep mriqc_sub; fi', stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
             if skip and f"mriqc_{sub_id}_{ses_id}" in running.stdout.decode():
                 print(f"--> Skipping already running / scheduled job ({n+1}/{len(sessions)}): mriqc_{sub_id}_{ses_id}")
