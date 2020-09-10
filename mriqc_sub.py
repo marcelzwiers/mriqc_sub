@@ -138,8 +138,8 @@ if __name__ == "__main__":
     parser.add_argument('-m','--mem_gb',    help='Required amount of memory in GB', default=18, type=int)
     parser.add_argument('-t','--time',      help='Required walltime in hours', default=8, type=int)
     parser.add_argument('-l','--local_gb',  help='Required free diskspace of the local temporary workdir (in gb)', default=50, type=int)
-    parser.add_argument('-a','--args',      help='Additional arguments that are passed to mriqc (NB: Use quotes to prevent parsing of spaces)', type=str, default='')
-    parser.add_argument('-q','--qargs',     help='Additional arguments that are passed to qsub (NB: Use quotes to prevent parsing of spaces)', type=str, default='')
+    parser.add_argument('-a','--args',      help='Additional arguments that are passed to mriqc (NB: Use quotes and a leading space to prevent unintended argument parsing)', type=str, default='')
+    parser.add_argument('-q','--qargs',     help='Additional arguments that are passed to qsub (NB: Use quotes and a leading space to prevent unintended argument parsing)', type=str, default='')
     parser.add_argument('-d','--dryrun',    help='Add this flag to just print the mriqc qsub commands without actually submitting them (useful for debugging)', action='store_true')
     args = parser.parse_args()
 

@@ -62,8 +62,8 @@ if __name__ == "__main__":
     parser.add_argument('-o','--outputdir', help='The output-directory where the mriqc-reports are stored (None -> bidsdir/derivatives/mriqc)')
     parser.add_argument('-f','--force',     help='If this flag is given then already running or scheduled mriqc_sub/group jobs with the same name are ignored, otherwise this function-call is cancelled', action='store_false')
     parser.add_argument('-m','--mem_gb',    help='Maximum required amount of memory', default=1, type=int)
-    parser.add_argument('-a','--args',      help='Additional arguments that are passed to mriqc (NB: Use quotes to prevent parsing of spaces)', type=str, default='')
-    parser.add_argument('-q','--qargs',     help='Additional arguments that are passed to qsub (NB: Use quotes to prevent parsing of spaces)', type=str, default='')
+    parser.add_argument('-a','--args',      help='Additional arguments that are passed to mriqc (NB: Use quotes and a leading space to prevent unintended argument parsing)', type=str, default='')
+    parser.add_argument('-q','--qargs',     help='Additional arguments that are passed to qsub (NB: Use quotes and a leading space to prevent unintended argument parsing)', type=str, default='')
     args = parser.parse_args()
 
     main(bidsdir=args.bidsdir, outputdir=args.outputdir, force=args.force, mem_gb=args.mem_gb, argstr=args.args)
