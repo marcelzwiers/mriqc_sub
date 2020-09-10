@@ -125,7 +125,7 @@ if __name__ == "__main__":
                                             '  mriqc_sub.py /project/3022026.01/bids\n'
                                             '  mriqc_sub.py /project/3022026.01/bids -w /project/3022026.01/mriqc_work\n'
                                             '  mriqc_sub.py /project/3022026.01/bids -o /project/3022026.01/derivatives --sessions sub-010/ses-mri01 sub-011/ses-mri01\n'
-                                            '  mriqc_sub.py /project/3022026.01/bids -a "--fft-spikes-detector --no-sub"\n'
+                                            '  mriqc_sub.py /project/3022026.01/bids -a " --fft-spikes-detector --no-sub"\n'
                                             '  mriqc_sub.py -f -m 16 /project/3022026.01/bids -s sub-013/ses-mri01\n\n'
                                             'Author:\n' 
                                             '  Marcel Zwiers\n ')
