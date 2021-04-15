@@ -21,7 +21,7 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
     bidsdir   = Path(bidsdir)
     outputdir = Path(outputdir)
     if not outputdir.name:
-        outputdir = bidsdir/'derivatives'               # NB: A mriqc subfolder is added to the outputdir later to be match the BIDS drivatives draft of one folder per pipeline
+        outputdir = bidsdir/'derivatives/mriqc'
 
     # Map the bids session-directories
     if not sessions:
@@ -59,7 +59,7 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
                      len(list((bidsdir/sub_id/ses_id/'extra_data').glob(f"{sub_id}_{ses_id}*T?w.nii*")))  + \
                      len(list((bidsdir/sub_id/ses_id/'func')      .glob(f"{sub_id}_{ses_id}*bold.nii*"))) + \
                      len(list((bidsdir/sub_id/ses_id/'extra_data').glob(f"{sub_id}_{ses_id}*bold.nii*")))
-        reports    = list((outputdir/'mriqc').glob(f"{sub_id}_{ses_id}*.html"))
+        reports    = list(outputdir.glob(f"{sub_id}_{ses_id}*.html"))
         print(f"\n>>> Found {len(reports)}/{nrniifiles} existing MRIQC-reports for: {sub_id}_{ses_id}")
 
         # Submit the mriqc job to the cluster
@@ -78,7 +78,7 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
                          .format(pwd        = Path.cwd(),
                                  mriqc      = f'unset PYTHONPATH; export PYTHONNOUSERSITE=1; singularity run --cleanenv {os.getenv("DCCN_OPT_DIR")}/mriqc/{os.getenv("MRIQC_VERSION")}/mriqc-{os.getenv("MRIQC_VERSION")}.simg',
                                  bidsdir    = bidsdir,
-                                 outputdir  = outputdir/'mriqc',
+                                 outputdir  = outputdir,
                                  workdir    = workdir,
                                  sub_id     = sub_id[4:],
                                  ses_id     = ses_id,
@@ -94,9 +94,9 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
             else:
                 print(f"--> Submitting job ({n+1}/{len(sessions)}):\n{command}")
                 if not dryrun:
-                    proc = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-                    if proc.returncode != 0:
-                        print(f"WARNING: Job submission failed with error-code {proc.returncode}\n")
+                    process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+                    if process.stderr.decode('utf-8') or process.returncode!=0:
+                        print(f"ERROR {process.returncode}: Job submission failed\n{process.stderr.decode('utf-8')}\n{process.stdout.decode('utf-8')}")
 
         else:
             print(f"--> Nothing to do for job ({n+1}/{len(sessions)}): {session}")
@@ -124,13 +124,13 @@ if __name__ == "__main__":
                                             'examples:\n'
                                             '  mriqc_sub.py /project/3022026.01/bids\n'
                                             '  mriqc_sub.py /project/3022026.01/bids -w /project/3022026.01/mriqc_work\n'
-                                            '  mriqc_sub.py /project/3022026.01/bids -o /project/3022026.01/derivatives --sessions sub-010/ses-mri01 sub-011/ses-mri01\n'
+                                            '  mriqc_sub.py /project/3022026.01/bids -o /project/3022026.01/mriqc --sessions sub-010/ses-mri01 sub-011/ses-mri01\n'
                                             '  mriqc_sub.py /project/3022026.01/bids -a " --fft-spikes-detector --no-sub"\n'
                                             '  mriqc_sub.py -f -m 16 /project/3022026.01/bids -s sub-013/ses-mri01\n\n'
                                             'Author:\n' 
                                             '  Marcel Zwiers\n ')
-    parser.add_argument('bidsdir',          help='The bids-directory with the (new) subject data')
-    parser.add_argument('-o','--outputdir', help='The output-directory where the mriqc-reports are stored (default = bidsdir/derivatives)', default='')
+    parser.add_argument('bidsdir',          help='The bids-directory with the subject data')
+    parser.add_argument('-o','--outputdir', help='The mriqc output-directory where the html-reports will be stored (default = bidsdir/derivatives/mriqc)', default='')
     parser.add_argument('-w','--workdir',   help='The working-directory where intermediate files are stored (default = temporary directory', default='')
     parser.add_argument('-s','--sessions',  help='Space separated list of selected sub-#/ses-# names / folders to be processed. Otherwise all sessions in the bidsfolder will be selected', nargs='+')
     parser.add_argument('-f','--force',     help='If this flag is given subjects will be processed, regardless of existing folders in the bidsfolder. Otherwise existing folders will be skipped', action='store_true')
