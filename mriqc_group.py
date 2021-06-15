@@ -9,7 +9,7 @@ import os
 import subprocess
 from pathlib import Path
 
-def main(bidsdir, outputdir=Path(), force=False, mem_gb=1, argstr='', qargstr=''):
+def main(bidsdir, outputdir='', force=False, mem_gb=1, argstr='', qargstr=''):
 
     # Defaults
     bidsdir   = Path(bidsdir)
@@ -71,7 +71,7 @@ if __name__ == "__main__":
                                             'Author:\n' 
                                             '  Marcel Zwiers\n ')
     parser.add_argument('bidsdir',          help='The bids-directory with the subject data')
-    parser.add_argument('-o','--outputdir', help='The mriqc output-directory where the html-reports are stored (None -> bidsdir/derivatives/mriqc)')
+    parser.add_argument('-o','--outputdir', help='The mriqc output-directory where the html-reports are stored (None -> bidsdir/derivatives/mriqc)', default='')
     parser.add_argument('-f','--force',     help='If this flag is given then already running or scheduled mriqc_sub/group jobs with the same name are ignored, otherwise this function-call is cancelled', action='store_false')
     parser.add_argument('-m','--mem_gb',    help='Maximum required amount of memory', default=1, type=int)
     parser.add_argument('-a','--args',      help='Additional arguments that are passed to mriqc (NB: Use quotes and a leading space to prevent unintended argument parsing)', type=str, default='')
