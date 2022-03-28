@@ -72,7 +72,7 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
                 for report in reports:
                     report.unlink()
 
-            command = """qsub -l walltime={walltime}:00:00,mem={mem_gb}gb{file_gb} -N mriqc_{outputdir}_sub-{sub_id}_{ses_id} {qargs} <<EOF
+            command = """qsub -l walltime={walltime}:00:00,mem={mem_gb}gb{file_gb} -N mriqc_sub-{sub_id}_{ses_id} {qargs} <<EOF
                          cd {pwd}
                          {mriqc} {bidsdir} {outputdir} participant -w {workdir} --participant-label {sub_id} {ses_id_opt} --verbose-reports --mem_gb {mem_gb} --ants-nthreads 1 --nprocs 1 {args}\nEOF"""\
                          .format(pwd        = Path.cwd(),
@@ -88,9 +88,9 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
                                  file_gb    = file_gb,
                                  args       = argstr,
                                  qargs      = qargstr)
-            running = subprocess.run('if [ ! -z "$(qselect -s RQH)" ]; then qstat -f $(qselect -s RQH) | grep Job_Name | grep mriqc_.*_sub-; fi', stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-            if skip and f"mriqc_{outputdir}_{sub_id}_{ses_id}" in running.stdout.decode():
-                print(f"--> Skipping already running / scheduled job ({n+1}/{len(sessions)}): mriqc_{outputdir}_{sub_id}_{ses_id}")
+            running = subprocess.run('if [ ! -z "$(qselect -s RQH)" ]; then qstat -f $(qselect -s RQH) | grep Job_Name | grep mriqc_sub-; fi', stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+            if skip and f"mriqc_{sub_id}_{ses_id}" in running.stdout.decode():
+                print(f"--> Skipping already running / scheduled job ({n+1}/{len(sessions)}): mriqc_{sub_id}_{ses_id}")
             else:
                 print(f"--> Submitting job ({n+1}/{len(sessions)}):\n{command}")
                 if not dryrun:
@@ -102,7 +102,7 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
             print(f"--> Nothing to do for job ({n+1}/{len(sessions)}): {session}")
 
     print('\n----------------\n'
-          'Done! Now wait for the jobs to finish... Check that e.g. with this command:\n\n  qstat -a $(qselect -s RQ) | grep mriqc_.*_sub-\n\n'
+          'Done! Now wait for the jobs to finish... Check that e.g. with this command:\n\n  qstat -a $(qselect -s RQ) | grep mriqc_sub\n\n'
           'When finished you can run e.g. a group-level QC analysis like this:\n\n'
           '  mriqc_group {bidsdir}\n\n'.format(bidsdir=bidsdir))
 
