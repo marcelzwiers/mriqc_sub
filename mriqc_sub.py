@@ -72,7 +72,7 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
                 for report in reports:
                     report.unlink()
 
-            command = """qsub -l walltime={walltime}:00:00,mem={mem_gb}gb{file_gb} -N mriqc_{bidsdir}_sub-{sub_id}_{ses_id} {qargs} <<EOF
+            command = """qsub -l walltime={walltime}:00:00,mem={mem_gb}gb{file_gb} -N mriqc_{outputdir}_sub-{sub_id}_{ses_id} {qargs} <<EOF
                          cd {pwd}
                          {mriqc} {bidsdir} {outputdir} participant -w {workdir} --participant-label {sub_id} {ses_id_opt} --verbose-reports --mem_gb {mem_gb} --ants-nthreads 1 --nprocs 1 {args}\nEOF"""\
                          .format(pwd        = Path.cwd(),
@@ -89,8 +89,8 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
                                  args       = argstr,
                                  qargs      = qargstr)
             running = subprocess.run('if [ ! -z "$(qselect -s RQH)" ]; then qstat -f $(qselect -s RQH) | grep Job_Name | grep mriqc_.*_sub-; fi', stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-            if skip and f"mriqc_{bidsdir}_{sub_id}_{ses_id}" in running.stdout.decode():
-                print(f"--> Skipping already running / scheduled job ({n+1}/{len(sessions)}): mriqc_{bidsdir}_{sub_id}_{ses_id}")
+            if skip and f"mriqc_{outputdir}_{sub_id}_{ses_id}" in running.stdout.decode():
+                print(f"--> Skipping already running / scheduled job ({n+1}/{len(sessions)}): mriqc_{outputdir}_{sub_id}_{ses_id}")
             else:
                 print(f"--> Submitting job ({n+1}/{len(sessions)}):\n{command}")
                 if not dryrun:
