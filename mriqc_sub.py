@@ -102,7 +102,7 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
             print(f"--> Nothing to do for job ({n+1}/{len(sessions)}): {session}")
 
     print('\n----------------\n'
-          'Done! Now wait for the jobs to finish... Check that e.g. with this command:\n\n  qstat -a $(qselect -s RQ) | grep mriqc_sub\n\n'
+          'Done! Now wait for the jobs to finish... Check that e.g. with this command:\n\n  qstat -a $(qselect -s RQ) | grep mriqc_.*_sub-\n\n'
           'When finished you can run e.g. a group-level QC analysis like this:\n\n'
           '  mriqc_group {bidsdir}\n\n'.format(bidsdir=bidsdir))
 
