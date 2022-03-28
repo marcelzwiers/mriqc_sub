@@ -90,7 +90,7 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
                                  qargs      = qargstr)
             running = subprocess.run('if [ ! -z "$(qselect -s RQH)" ]; then qstat -f $(qselect -s RQH) | grep Job_Name | grep mriqc_.*_sub-; fi', stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
             if skip and f"mriqc_{bidsdir}_{sub_id}_{ses_id}" in running.stdout.decode():
-                print(f"--> Skipping already running / scheduled job ({n+1}/{len(sessions)}): mriqc_{sub_id}_{ses_id}")
+                print(f"--> Skipping already running / scheduled job ({n+1}/{len(sessions)}): mriqc_{bidsdir}_{sub_id}_{ses_id}")
             else:
                 print(f"--> Submitting job ({n+1}/{len(sessions)}):\n{command}")
                 if not dryrun:
