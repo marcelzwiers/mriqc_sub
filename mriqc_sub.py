@@ -66,11 +66,15 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
         if force or not len(reports)==nrniifiles:
 
             # Start with a clean directory if we are forcing to reprocess the data (as presumably something went wrong or has changed)
-            if not dryrun:
-                if force and workdir.is_dir():
-                    shutil.rmtree(workdir, ignore_errors=True)          # NB: This can also be done in parallel on the cluster if it takes too much time
+            if force:
+                if workdir.is_dir():
+                    print(f"Cleaning: {workdir}")
+                    if not dryrun:
+                        shutil.rmtree(workdir, ignore_errors=True)          # NB: This can also be done in parallel on the cluster if it takes too much time
                 for report in reports:
-                    report.unlink()
+                    print(f"Cleaning: {report}")
+                    if not dryrun:
+                        report.unlink()
 
             command = """qsub -l walltime={walltime}:00:00,mem={mem_gb}gb{file_gb} -N mriqc_sub-{sub_id}_{ses_id} {qargs} <<EOF
                          cd {pwd}
@@ -133,7 +137,7 @@ if __name__ == "__main__":
     parser.add_argument('-o','--outputdir', help='The mriqc output-directory where the html-reports will be stored (default = bidsdir/derivatives/mriqc)', default='')
     parser.add_argument('-w','--workdir',   help='The working-directory where intermediate files are stored (default = temporary directory', default='')
     parser.add_argument('-s','--sessions',  help='Space separated list of selected sub-#/ses-# names / folders to be processed. Otherwise all sessions in the bidsfolder will be selected', nargs='+')
-    parser.add_argument('-f','--force',     help='If this flag is given subjects will be processed, regardless of existing folders in the bidsfolder. Otherwise existing folders will be skipped', action='store_true')
+    parser.add_argument('-f','--force',     help='If this flag is given subjects will be processed with a clean working directory, regardless of existing folders in the bidsfolder. Otherwise existing folders will be skipped', action='store_true')
     parser.add_argument('-i','--ignore',    help='If this flag is given then already running or scheduled jobs with the same name are ignored, otherwise job submission is skipped', action='store_false')
     parser.add_argument('-m','--mem_gb',    help='Required amount of memory in GB', default=18, type=int)
     parser.add_argument('-t','--time',      help='Required walltime in hours', default=8, type=int)
