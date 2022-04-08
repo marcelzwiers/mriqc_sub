@@ -28,7 +28,7 @@ def main(bidsdir, outputdir='', force=False, mem_gb=1, argstr='', qargstr=''):
 
     # Run mriqc
     command = """qsub -l walltime=0:10:00,mem={mem_gb}gb -N mriqc_group {qargs} <<EOF
-                 module add mriqc; cd {pwd}
+                 cd {pwd}
                  {mriqc} {bidsdir} {outputdir} group --nprocs 1 {args}\nEOF"""\
                  .format(pwd       = os.getcwd(),
                          mriqc     = f'unset PYTHONPATH; export PYTHONNOUSERSITE=1; singularity run --cleanenv {os.getenv("DCCN_OPT_DIR")}/mriqc/{os.getenv("MRIQC_VERSION")}/mriqc-{os.getenv("MRIQC_VERSION")}.simg',
