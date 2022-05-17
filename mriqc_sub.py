@@ -12,6 +12,7 @@ group level report and the features CSV table)
 import os
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 
@@ -48,7 +49,7 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
             ses_id_opt = ''
 
         if not workdir_:
-            workdir = Path('\$TMPDIR')
+            workdir = Path(tempfile.gettempdir() if nosub else '\$TMPDIR')
             file_gb = f",file={file_gb_}gb"
         else:
             workdir = Path(workdir_)/f"{sub_id}_{ses_id}"
