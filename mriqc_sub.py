@@ -97,10 +97,15 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
         else:
             print(f"--> Nothing to do for job ({n+1}/{len(sessions)}): {session}")
 
-    print('\n----------------\n'
-          'Done! Now wait for the jobs to finish... Check that e.g. with this command:\n\n  qstat -a $(qselect -s RQ) | grep mriqc_sub\n\n'
-          'When finished you can run e.g. a group-level QC analysis like this:\n\n'
-          '  mriqc_group {bidsdir}\n\n'.format(bidsdir=bidsdir))
+    if not sessions:
+        print(f"No BIDS subject/session folders found in {bidsdir}")
+    elif dryrun:
+        print('\n----------------\nDone! NB: The printed jobs were not actually submitted')
+    else:
+        print('\n----------------\n'
+              'Done! Now wait for the jobs to finish... Check that e.g. with this command:\n\n  qstat -a $(qselect -s RQ) | grep mriqc_sub\n\n'
+              'When finished you can run e.g. a group-level QC analysis like this:\n\n'
+              f'  mriqc_group {bidsdir}\n\n')
 
 
 # Shell usage
