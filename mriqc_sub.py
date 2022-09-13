@@ -49,7 +49,7 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
             ses_id_opt = ''
 
         if not workdir_:
-            workdir = Path(tempfile.gettempdir() if nosub else '\$TMPDIR')
+            workdir = Path(tempfile.mkdtemp() if nosub else '\$TMPDIR')
             file_gb = f",file={file_gb_}gb"
         else:
             workdir = Path(workdir_)/f"{sub_id}_{ses_id}"
@@ -132,7 +132,7 @@ if __name__ == "__main__":
                                             '  Marcel Zwiers\n ')
     parser.add_argument('bidsdir',          help='The bids-directory with the subject data')
     parser.add_argument('-o','--outputdir', help='The mriqc output-directory where the html-reports will be stored (default = bidsdir/derivatives/mriqc)', default='')
-    parser.add_argument('-w','--workdir',   help='The working-directory where intermediate files are stored (default = temporary directory', default='')
+    parser.add_argument('-w','--workdir',   help='The working-directory where intermediate files are stored (default = a temporary directory', default='')
     parser.add_argument('-s','--sessions',  help='Space separated list of selected sub-#/ses-# names / folders to be processed. Otherwise all sessions in the bidsfolder will be selected', nargs='+')
     parser.add_argument('-f','--force',     help='If this flag is given subjects will be processed with a clean working directory, regardless of existing folders in the bidsfolder. Otherwise existing folders will be skipped', action='store_true')
     parser.add_argument('-i','--ignore',    help='If this flag is given then already running or scheduled jobs with the same name are ignored, otherwise job submission is skipped', action='store_false')
