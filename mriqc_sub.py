@@ -49,7 +49,7 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
             ses_id_opt = ''
 
         if not workdir_:
-            workdir = Path(tempfile.mkdtemp() if nosub else '\$TMPDIR')
+            workdir = Path(tempfile.gettempdir() if nosub else '\$TMPDIR')
             file_gb = f",file={file_gb_}gb"
         else:
             workdir = Path(workdir_)/f"{sub_id}_{ses_id}"
@@ -93,6 +93,8 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
                     process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
                     if process.stderr.decode('utf-8') or process.returncode!=0:
                         print(f"ERROR {process.returncode}: Job submission failed\n{process.stderr.decode('utf-8')}\n{process.stdout.decode('utf-8')}")
+                    if nosub:
+                        shutil.rmtree(workdir, ignore_errors=True)
 
         else:
             print(f"--> Nothing to do for job ({n+1}/{len(sessions)}): {session}")
@@ -101,6 +103,8 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
         print(f"No BIDS subject/session folders found in {bidsdir}")
     elif dryrun:
         print('\n----------------\nDone! NB: The printed jobs were not actually submitted')
+    elif nosub:
+        print('\n----------------\nDone!')
     else:
         print('\n----------------\n'
               'Done! Now wait for the jobs to finish... Check that e.g. with this command:\n\n  qstat -a $(qselect -s RQ) | grep mriqc_sub\n\n'
