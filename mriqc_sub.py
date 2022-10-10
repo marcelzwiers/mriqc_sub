@@ -72,8 +72,6 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
                     print(f"Cleaning: {workdir}")
                     if not dryrun:
                         shutil.rmtree(workdir, ignore_errors=True)          # NB: This can also be done in parallel on the cluster if it takes too much time
-                else:
-                    workdir.mkdir(parents=True)
                 for report in reports:
                     print(f"Cleaning: {report}")
                     if not dryrun:
@@ -82,6 +80,7 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
             qsub  = f"qsub -l walltime={walltime}:00:00,mem={mem_gb}gb{file_gb} -N mriqc_{sub_id}_{ses_id} {qargs}"
             mriqc = f'unset PYTHONPATH; export PYTHONNOUSERSITE=1; singularity run --cleanenv {os.getenv("DCCN_OPT_DIR")}/mriqc/{os.getenv("MRIQC_VERSION")}/mriqc-{os.getenv("MRIQC_VERSION")}.simg {bidsdir} {outputdir} participant -w {workdir} --participant-label {sub_id[4:]} {ses_id_opt} --verbose-reports --mem_gb {mem_gb} --ants-nthreads 1 --nprocs 1 {args}'
             if nosub:
+                workdir.mkdir(parents=True)
                 command = f"cd {Path.cwd()}\n{mriqc}"
             else:
                 command = f"{qsub} <<EOF\ncd {Path.cwd()}\n{mriqc}\nEOF"
