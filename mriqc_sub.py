@@ -49,7 +49,7 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
             ses_id_opt = ''
 
         if not workdir_:
-            workdir = Path(tempfile.gettempdir() if nosub else '\$TMPDIR')
+            workdir = Path(tempfile.gettempdir() if nosub else '\$TMPDIR')/f"{sub_id}_{ses_id}"
             file_gb = f",file={file_gb_}gb"
         else:
             workdir = Path(workdir_)/f"{sub_id}_{ses_id}"
@@ -72,6 +72,8 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
                     print(f"Cleaning: {workdir}")
                     if not dryrun:
                         shutil.rmtree(workdir, ignore_errors=True)          # NB: This can also be done in parallel on the cluster if it takes too much time
+                else:
+                    workdir.mkdir(parents=True)
                 for report in reports:
                     print(f"Cleaning: {report}")
                     if not dryrun:
