@@ -48,8 +48,9 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
             ses_id     = ''
             ses_id_opt = ''
 
+        tempdir = Path(tempfile.gettempdir() if nosub else '\$TMPDIR')
         if not workdir_:
-            workdir = Path(tempfile.gettempdir() if nosub else '\$TMPDIR')/f"{sub_id}_{ses_id}"
+            workdir = tempdir/f"{sub_id}_{ses_id}"
             file_gb = f",file={file_gb_}gb"
         else:
             workdir = Path(workdir_)/f"{sub_id}_{ses_id}"
@@ -78,7 +79,7 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
                         report.unlink()
 
             qsub  = f"qsub -l walltime={walltime}:00:00,mem={mem_gb}gb{file_gb} -N mriqc_{sub_id}_{ses_id} {qargs}"
-            mriqc = f'unset PYTHONPATH; export PYTHONNOUSERSITE=1; singularity run --cleanenv --env TMP=\$TMPDIR {os.getenv("DCCN_OPT_DIR")}/mriqc/{os.getenv("MRIQC_VERSION")}/mriqc-{os.getenv("MRIQC_VERSION")}.simg {bidsdir} {outputdir} participant -w {workdir} --participant-label {sub_id[4:]} {ses_id_opt} --verbose-reports --mem_gb {mem_gb} --ants-nthreads 1 --nprocs 1 {args}'
+            mriqc = f'unset PYTHONPATH; export PYTHONNOUSERSITE=1; singularity run --cleanenv --env TMP={tempdir} {os.getenv("DCCN_OPT_DIR")}/mriqc/{os.getenv("MRIQC_VERSION")}/mriqc-{os.getenv("MRIQC_VERSION")}.simg {bidsdir} {outputdir} participant -w {workdir} --participant-label {sub_id[4:]} {ses_id_opt} --verbose-reports --mem_gb {mem_gb} --ants-nthreads 1 --nprocs 1 {args}'
             if nosub:
                 workdir.mkdir(parents=True, exist_ok=True)
                 command = f"cd {Path.cwd()}\n{mriqc}"
