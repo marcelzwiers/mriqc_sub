@@ -16,7 +16,7 @@ import tempfile
 from pathlib import Path
 
 
-def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, mem_gb=18, walltime=8, file_gb_=50, args='', qargs='', dryrun=False, nosub=False, skip=True):
+def main(bidsdir: str, outputdir: str, workroot: str, sessions=(), force=False, manager='torque', mem_gb=18, walltime=8, file_gb_=50, args='', qargs='', dryrun=False, nosub=False, skip=True):
 
     # Default
     bidsdir   = Path(bidsdir)
@@ -49,12 +49,15 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
             ses_id_opt = ''
 
         tempdir = Path(tempfile.gettempdir() if nosub else '\$TMPDIR')
-        if not workdir_:
+        file_gb = ''                                                        # We don't need to allocate local scratch space
+        if not workroot:
             workdir = tempdir/f"{sub_id}_{ses_id}"
-            file_gb = f",file={file_gb_}gb"
+            if manager == 'torque':
+                file_gb = f",file={file_gb_}gb"
+            elif manager == 'slurm':
+                file_gb = f"--tmp={file_gb_}G"
         else:
-            workdir = Path(workdir_)/f"{sub_id}_{ses_id}"
-            file_gb = ''                                                 # We don't need to allocate local scratch space
+            workdir = Path(workroot)/f"{sub_id}_{ses_id}"
 
         # A session is considered already done if there are html-reports for every anat/*_T?w and every func/*_bold file
         nrniifiles = len(list((bidsdir/sub_id/ses_id/'anat')      .glob(f"{sub_id}_{ses_id}*T?w.nii*")))  + \
@@ -78,23 +81,37 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
                     if not dryrun:
                         report.unlink()
 
-            qsub  = f"qsub -l walltime={walltime}:00:00,mem={mem_gb}gb{file_gb} -N mriqc_{sub_id}_{ses_id} {qargs}"
-            mriqc = f'apptainer run --cleanenv --bind {tempdir}:/tmp {os.getenv("DCCN_OPT_DIR")}/mriqc/{os.getenv("MRIQC_VERSION")}/mriqc-{os.getenv("MRIQC_VERSION")}.simg {bidsdir} {outputdir} participant -w {workdir} --participant-label {sub_id[4:]} {ses_id_opt} --verbose-reports --mem_gb {mem_gb} --ants-nthreads 1 --nprocs 1 {args}'
+            if manager == 'torque':
+                submit  = f"qsub -l walltime={walltime}:00:00,mem={mem_gb}gb{file_gb} -N mriqc_{sub_id}_{ses_id} {qargs}"
+                running = subprocess.run('if [ ! -z "$(qselect -s RQH)" ]; then qstat -f $(qselect -s RQH) | grep Job_Name | grep mriqc_sub; fi', shell=True, capture_output=True, text=True)
+            elif manager == 'slurm':
+                submit  = f"sbatch --job-name=mriqc_{sub_id}_{ses_id} --mem={mem_gb}G --time={walltime}:00:00 {file_gb} {qargs}"
+                running = subprocess.run('squeue -h -o format=%j | grep mriqc_sub', shell=True, capture_output=True, text=True)
+            else:
+                print(f"ERROR: Invalid resource manager `{manager}`")
+                exit(1)
+
+            job = textwrap.dedent(f'''\
+                #!/bin/bash
+                ulimit -s unlimited
+                echo using: TMPDIR=\$TMPDIR
+                cd {Path.cwd()}              
+                apptainer run --cleanenv --bind {tempdir}:/tmp {os.getenv("DCCN_OPT_DIR")}/mriqc/{os.getenv("MRIQC_VERSION")}/mriqc-{os.getenv("MRIQC_VERSION")}.simg {bidsdir} {outputdir} participant -w {workdir} --participant-label {sub_id[4:]} {ses_id_opt} --verbose-reports --mem_gb {mem_gb} --ants-nthreads 1 --nprocs 1 {args}''')
+
+            # Submit the job to the compute cluster
             if nosub:
                 workdir.mkdir(parents=True, exist_ok=True)
-                command = f"cd {Path.cwd()}\n{mriqc}"
+                command = job
             else:
-                command = f"{qsub} <<EOF\ncd {Path.cwd()}\n{mriqc}\nEOF"
-
-            running = subprocess.run('if [ ! -z "$(qselect -s RQH)" ]; then qstat -f $(qselect -s RQH) | grep Job_Name | grep mriqc_sub-; fi', stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-            if skip and f"mriqc_{sub_id}_{ses_id}" in running.stdout.decode():
+                command = f"{submit} <<EOF\n{job}\nEOF"
+            if skip and f"mriqc_{sub_id}_{ses_id}" in running.stdout:
                 print(f"--> Skipping already running / scheduled job ({n+1}/{len(sessions)}): mriqc_{sub_id}_{ses_id}")
             else:
                 print(f"--> {'Running' if nosub else 'Submitting'} job ({n+1}/{len(sessions)}):\n{command}")
                 if not dryrun:
-                    process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-                    if process.stderr.decode('utf-8') or process.returncode!=0:
-                        print(f"ERROR {process.returncode}: Job submission failed\n{process.stderr.decode('utf-8')}\n{process.stdout.decode('utf-8')}")
+                    process = subprocess.run(command, shell=True, capture_output=True, text=True)
+                    if process.stderr or process.returncode!=0:
+                        print(f"ERROR {process.returncode}: Job submission failed\n{process.stderr}\n{process.stdout}")
                     if nosub:
                         shutil.rmtree(workdir, ignore_errors=True)
 
@@ -109,9 +126,9 @@ def main(bidsdir: str, outputdir: str, workdir_: str, sessions=(), force=False, 
         print('\n----------------\nDone!')
     else:
         print('\n----------------\n'
-              'Done! Now wait for the jobs to finish... Check that e.g. with this command:\n\n  qstat -a $(qselect -s RQ) | grep mriqc_sub\n\n'
+             f"Done! Now wait for the jobs to finish... Check that e.g. with this command:\n\n  {'qstat - a $(qselect -s RQ)' if manager=='torque' else 'squeue'} | grep mriqc_sub\n\n"
               'When finished you can run e.g. a group-level QC analysis like this:\n\n'
-              f'  mriqc_group {bidsdir}\n\n')
+             f"  mriqc_group {bidsdir}\n\n")
 
 
 # Shell usage
@@ -142,6 +159,7 @@ if __name__ == "__main__":
     parser.add_argument('-s','--sessions',  help='Space separated list of selected sub-#/ses-# names / folders to be processed. Otherwise all sessions in the bidsfolder will be selected', nargs='+')
     parser.add_argument('-f','--force',     help='If this flag is given subjects will be processed with a clean working directory, regardless of existing folders in the bidsfolder. Otherwise existing folders will be skipped', action='store_true')
     parser.add_argument('-i','--ignore',    help='If this flag is given then already running or scheduled jobs with the same name are ignored, otherwise job submission is skipped', action='store_false')
+    parser.add_argument('-r','--resourcemanager',   help='Resource manager to which the jobs are submitted', choices=('torque', 'slurm'), default='torque', const='torque', nargs='?')
     parser.add_argument('-m','--mem_gb',    help='Required amount of memory in GB', default=18, type=int)
     parser.add_argument('-t','--time',      help='Required walltime in hours', default=8, type=int)
     parser.add_argument('-l','--local_gb',  help='Required free diskspace of the local temporary workdir (in gb)', default=50, type=int)
@@ -153,9 +171,10 @@ if __name__ == "__main__":
 
     main(bidsdir   = args.bidsdir,
          outputdir = args.outputdir,
-         workdir_  = args.workdir,
+         workroot= args.workdir,
          sessions  = args.sessions,
          force     = args.force,
+         manager   = args.resourcemanager,
          mem_gb    = args.mem_gb,
          walltime  = args.time,
          file_gb_  = args.local_gb,
