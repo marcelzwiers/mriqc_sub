@@ -13,6 +13,8 @@ import os
 import shutil
 import subprocess
 import tempfile
+import argparse
+import textwrap
 from pathlib import Path
 
 
@@ -81,6 +83,7 @@ def main(bidsdir: str, outputdir: str, workroot: str, sessions=(), force=False, 
                     if not dryrun:
                         report.unlink()
 
+            # Generate the submit-command
             if manager == 'torque':
                 submit  = f"qsub -l walltime={walltime}:00:00,mem={mem_gb}gb{file_gb} -N mriqc_{sub_id}_{ses_id} {qargs}"
                 running = subprocess.run('if [ ! -z "$(qselect -s RQH)" ]; then qstat -f $(qselect -s RQH) | grep Job_Name | grep mriqc_sub; fi', shell=True, capture_output=True, text=True)
@@ -91,12 +94,13 @@ def main(bidsdir: str, outputdir: str, workroot: str, sessions=(), force=False, 
                 print(f"ERROR: Invalid resource manager `{manager}`")
                 exit(1)
 
-            job = textwrap.dedent(f'''\
+            # Generate the mriqc-job
+            job = textwrap.dedent(f"""\
                 #!/bin/bash
-                ulimit -s unlimited
+                ulimit -v unlimited
                 echo using: TMPDIR=\$TMPDIR
                 cd {Path.cwd()}              
-                apptainer run --cleanenv --bind {tempdir}:/tmp {os.getenv("DCCN_OPT_DIR")}/mriqc/{os.getenv("MRIQC_VERSION")}/mriqc-{os.getenv("MRIQC_VERSION")}.simg {bidsdir} {outputdir} participant -w {workdir} --participant-label {sub_id[4:]} {ses_id_opt} --verbose-reports --mem_gb {mem_gb} --ants-nthreads 1 --nprocs 1 {args}''')
+                apptainer run --cleanenv --bind {tempdir}:/tmp {os.getenv("DCCN_OPT_DIR")}/mriqc/{os.getenv("MRIQC_VERSION")}/mriqc-{os.getenv("MRIQC_VERSION")}.simg {bidsdir} {outputdir} participant -w {workdir} --participant-label {sub_id[4:]} {ses_id_opt} --verbose-reports --mem_gb {mem_gb} --ants-nthreads 1 --nprocs 1 {args}""")
 
             # Submit the job to the compute cluster
             if nosub:
@@ -126,7 +130,7 @@ def main(bidsdir: str, outputdir: str, workroot: str, sessions=(), force=False, 
         print('\n----------------\nDone!')
     else:
         print('\n----------------\n'
-             f"Done! Now wait for the jobs to finish... Check that e.g. with this command:\n\n  {'qstat - a $(qselect -s RQ)' if manager=='torque' else 'squeue'} | grep mriqc_sub\n\n"
+             f"Done! Now wait for the jobs to finish... Check that e.g. with this command:\n\n  {'qstat - a $(qselect -s RQ)' if manager=='torque' else 'squeue -u '+os.getenv('USER')} | grep mriqc_sub\n\n"
               'When finished you can run e.g. a group-level QC analysis like this:\n\n'
              f"  mriqc_group {bidsdir}\n\n")
 
@@ -135,9 +139,6 @@ def main(bidsdir: str, outputdir: str, workroot: str, sessions=(), force=False, 
 if __name__ == "__main__":
 
     # Parse the input arguments and run bidscoiner(args)
-    import argparse
-    import textwrap
-
     class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionHelpFormatter):
         pass
 
@@ -159,7 +160,7 @@ if __name__ == "__main__":
     parser.add_argument('-s','--sessions',  help='Space separated list of selected sub-#/ses-# names / folders to be processed. Otherwise all sessions in the bidsfolder will be selected', nargs='+')
     parser.add_argument('-f','--force',     help='If this flag is given subjects will be processed with a clean working directory, regardless of existing folders in the bidsfolder. Otherwise existing folders will be skipped', action='store_true')
     parser.add_argument('-i','--ignore',    help='If this flag is given then already running or scheduled jobs with the same name are ignored, otherwise job submission is skipped', action='store_false')
-    parser.add_argument('-r','--resourcemanager',   help='Resource manager to which the jobs are submitted', choices=('torque', 'slurm'), default='torque', const='torque', nargs='?')
+    parser.add_argument('-r','--resourcemanager', help='Resource manager to which the jobs are submitted', choices=('torque', 'slurm'), default='torque', const='torque', nargs='?')
     parser.add_argument('-m','--mem_gb',    help='Required amount of memory in GB', default=18, type=int)
     parser.add_argument('-t','--time',      help='Required walltime in hours', default=8, type=int)
     parser.add_argument('-l','--local_gb',  help='Required free diskspace of the local temporary workdir (in gb)', default=50, type=int)
