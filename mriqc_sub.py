@@ -50,7 +50,7 @@ def main(bidsdir: str, outputdir: str, workroot: str, sessions=(), force=False, 
             ses_id     = ''
             ses_id_opt = ''
 
-        tempdir = Path(tempfile.gettempdir() if nosub else '\$TMPDIR')
+        tempdir = Path(tempfile.gettempdir() if nosub else '\\$TMPDIR')
         file_gb = ''                                                        # We don't need to allocate local scratch space
         if not workroot:
             workdir = tempdir/f"{sub_id}_{ses_id}"
