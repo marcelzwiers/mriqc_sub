@@ -17,9 +17,10 @@ import textwrap
 from pathlib import Path
 
 
-def main(bidsdir: str, outputdir: str, workroot: str, sessions=(), force=False, manager='torque', mem_gb=18, walltime=8, file_gb_=50, args='', qargs='', dryrun=False, nosub=False, skip=True):
+def main(bidsdir: str, outputdir: str, workroot: str, sessions=(), force=False, mem_gb=18, walltime=8, file_gb_=50, args='', qargs='', dryrun=False, nosub=False, skip=True):
 
     # Default
+    manager   = 'slurm' if 'slurm' in os.getenv('PATH') else 'torque'
     bidsdir   = Path(bidsdir)
     outputdir = Path(outputdir)
     if not outputdir.name:
@@ -158,7 +159,6 @@ if __name__ == "__main__":
     parser.add_argument('-s','--sessions',  help='Space separated list of selected sub-#/ses-# names / folders to be processed. Otherwise all sessions in the bidsfolder will be selected', nargs='+')
     parser.add_argument('-f','--force',     help='If this flag is given subjects will be processed with a clean working directory, regardless of existing folders in the bidsfolder. Otherwise existing folders will be skipped', action='store_true')
     parser.add_argument('-i','--ignore',    help='If this flag is given then already running or scheduled jobs with the same name are ignored, otherwise job submission is skipped', action='store_false')
-    parser.add_argument('-r','--resourcemanager', help='Resource manager to which the jobs are submitted', choices=('torque', 'slurm'), default='torque')
     parser.add_argument('-m','--mem_gb',    help='Required amount of memory in GB', default=18, type=int)
     parser.add_argument('-t','--time',      help='Required walltime in hours', default=8, type=int)
     parser.add_argument('-l','--local_gb',  help='Required free diskspace of the local temporary workdir (in GB)', default=50, type=int)
@@ -173,7 +173,6 @@ if __name__ == "__main__":
          workroot  = args.workdir,
          sessions  = args.sessions,
          force     = args.force,
-         manager   = args.resourcemanager,
          mem_gb    = args.mem_gb,
          walltime  = args.time,
          file_gb_  = args.local_gb,
