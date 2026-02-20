@@ -13,8 +13,10 @@ from pathlib import Path
 def main(bidsdir, outputdir='', force=False, manager='torque', mem_gb=1, args='', qargs='', nosub=False):
 
     # Defaults
+    manager   = 'slurm' if 'slurm' in os.getenv('PATH') else 'torque'
     bidsdir   = Path(bidsdir)
     outputdir = Path(outputdir)
+    print(f"Detected cluster manager: {manager}")
     if not outputdir.name:
         outputdir = bidsdir/'derivatives'/'mriqc'
 

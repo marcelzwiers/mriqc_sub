@@ -14,6 +14,7 @@ import subprocess
 import tempfile
 import argparse
 import textwrap
+import shlex
 from pathlib import Path
 
 
@@ -23,6 +24,7 @@ def main(bidsdir: str, outputdir: str, workroot: str, sessions=(), force=False, 
     manager   = 'slurm' if 'slurm' in os.getenv('PATH') else 'torque'
     bidsdir   = Path(bidsdir)
     outputdir = Path(outputdir)
+    print(f"Detected cluster manager: {manager}")
     if not outputdir.name:
         outputdir = bidsdir/'derivatives/mriqc'
 
@@ -89,7 +91,7 @@ def main(bidsdir: str, outputdir: str, workroot: str, sessions=(), force=False, 
                 running = subprocess.run('if [ ! -z "$(qselect -s RQH)" ]; then qstat -f $(qselect -s RQH) | grep Job_Name | grep mriqc_sub; fi', shell=True, capture_output=True, text=True)
             elif manager == 'slurm':
                 submit  = f"sbatch --job-name=mriqc_{sub_id}_{ses_id} --mem={mem_gb}G --time={walltime}:00:00 {file_gb} {qargs}"
-                running = subprocess.run('squeue -h -o format=%j | grep mriqc_sub', shell=True, capture_output=True, text=True)
+                running = subprocess.run('squeue -u $USER -o format=%j | grep mriqc_sub', shell=True, capture_output=True, text=True)
             else:
                 print(f"ERROR: Invalid resource manager `{manager}`")
                 exit(1)
@@ -129,7 +131,7 @@ def main(bidsdir: str, outputdir: str, workroot: str, sessions=(), force=False, 
         print('\n----------------\nDone!')
     else:
         print('\n----------------\n'
-             f"Done! Now wait for the jobs to finish... Check that e.g. with this command:\n\n  {'qstat -a $(qselect -s RQ)' if manager=='torque' else 'squeue -u '+os.getenv('USER')} | grep mriqc_sub\n\n"
+             f"Done! Now wait for the jobs to finish... Check that e.g. with this command:\n\n  {'qstat -a $(qselect -s RQ)' if manager=='torque' else 'squeue -u '+os.getenv('USER')} -o %j | grep mriqc_sub\n\n"
               'When finished you can run e.g. a group-level QC analysis like this:\n\n'
              f"  mriqc_group {bidsdir}\n\n")
 
@@ -142,42 +144,44 @@ if __name__ == "__main__":
         pass
 
     parser = argparse.ArgumentParser(formatter_class=CustomFormatter, description=textwrap.dedent(__doc__),
-                                     epilog='for more information see:\n'
+                                     epilog='Any unrecognized options are forwarded directly to mriqc\n\n'
+                                            'for more information see:\n'
                                             '  module help mriqc\n'
                                             '  mriqc -h\n\n'
                                             'examples:\n'
-                                            '  mriqc_sub.py /project/3022026.01/bids\n'
-                                            '  mriqc_sub.py /project/3022026.01/bids -w /project/3022026.01/mriqc_work\n'
-                                            '  mriqc_sub.py /project/3022026.01/bids -o /project/3022026.01/mriqc --sessions sub-010/ses-mri01 sub-011/ses-mri01\n'
-                                            '  mriqc_sub.py /project/3022026.01/bids -a "--fft-spikes-detector --no-sub"\n'
-                                            '  mriqc_sub.py -f -m 16 /project/3022026.01/bids -s sub-013/ses-mri01\n\n'
+                                            '  mriqc_sub /project/3022026.01/bids\n'
+                                            '  mriqc_sub /project/3022026.01/bids -w /project/3022026.01/mriqc_work\n'
+                                            '  mriqc_sub /project/3022026.01/bids -o /project/3022026.01/mriqc --sessions sub-010/ses-mri01 sub-011/ses-mri01\n'
+                                            '  mriqc_sub /project/3022026.01/bids --fft-spikes-detector --no-sub -q "-N 1 -c 4 --ntasks-per-node=1"\n'
+                                            '  mriqc_sub -f -m 16 /project/3022026.01/bids -s sub-013/ses-mri01\n\n'
                                             'Author:\n' 
                                             '  Marcel Zwiers\n ')
     parser.add_argument('bidsdir',          help='The bids-directory with the subject data')
     parser.add_argument('-o','--outputdir', help='The mriqc output-directory where the html-reports will be stored (default = bidsdir/derivatives/mriqc)', default='')
     parser.add_argument('-w','--workdir',   help='The working-directory where intermediate files are stored (default = a temporary directory', default='')
     parser.add_argument('-s','--sessions',  help='Space separated list of selected sub-#/ses-# names / folders to be processed. Otherwise all sessions in the bidsfolder will be selected', nargs='+')
-    parser.add_argument('-f','--force',     help='If this flag is given subjects will be processed with a clean working directory, regardless of existing folders in the bidsfolder. Otherwise existing folders will be skipped', action='store_true')
-    parser.add_argument('-i','--ignore',    help='If this flag is given then already running or scheduled jobs with the same name are ignored, otherwise job submission is skipped', action='store_false')
+    parser.add_argument('-c','--clobber',   help='If this flag is given subjects will be processed with a clean working directory, regardless of existing folders in the bidsfolder. Otherwise existing folders will be skipped', action='store_true')
+    parser.add_argument('-r','--resubmit',  help='If this flag is given then job are submitted, regardless of already running or scheduled jobs with the same name, otherwise job submission is skipped', action='store_false')
     parser.add_argument('-m','--mem_gb',    help='Required amount of memory in GB', default=18, type=int)
     parser.add_argument('-t','--time',      help='Required walltime in hours', default=8, type=int)
     parser.add_argument('-l','--local_gb',  help='Required free diskspace of the local temporary workdir (in GB)', default=50, type=int)
-    parser.add_argument('-a','--args',      help='Additional (opaque) arguments that are passed to mriqc (NB: Use quotes and include at least one space character to prevent overearly parsing)', type=str, default='')
     parser.add_argument('-q','--qargs',     help='Additional (opaque) arguments that are passed to the resource manager (NB: Use quotes and include at least one space character to prevent overearly parsing)', type=str, default='')
     parser.add_argument('-n','--nosub',     help='Add this flag to run the mriqc commands locally, without submitting them (useful for debugging)', action='store_true')
-    parser.add_argument('-d','--dryrun',    help='Add this flag to just print the mriqc qsub commands without actually submitting them (useful for debugging)', action='store_true')
-    args = parser.parse_args()
+    parser.add_argument('-d','--dryrun',    help='Add this flag to just print the mriqc qsub/sbatch commands without actually submitting them (useful for debugging)', action='store_true')
+
+    # Parse only what we know
+    args, passthrough = parser.parse_known_args()
 
     main(bidsdir   = args.bidsdir,
          outputdir = args.outputdir,
          workroot  = args.workdir,
          sessions  = args.sessions,
-         force     = args.force,
+         force     = args.clobber,
          mem_gb    = args.mem_gb,
          walltime  = args.time,
          file_gb_  = args.local_gb,
-         args      = args.args,
+         args      = " ".join(shlex.quote(a) for a in passthrough),
          qargs     = args.qargs,
          dryrun    = args.dryrun,
          nosub     = args.nosub,
-         skip      = args.ignore)
+         skip      = args.resubmit)
